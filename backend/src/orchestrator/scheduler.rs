@@ -39,24 +39,35 @@ where
     let mut reports = Vec::new();
 
     while !pending.is_empty() {
-        let (mut ready, mut waiting): (Vec<_>, Vec<_>) = std::mem::take(&mut pending)
+        // Tasks blocked by a failed dependency are failed without running. Repeat until no
+        // more tasks are blocked so failures cascade through chains (a -> b -> c).
+        loop {
+            let (blocked, rest): (Vec<_>, Vec<_>) = std::mem::take(&mut pending)
+                .into_iter()
+                .partition(|t| t.dependencies.iter().any(|d| failed.contains(d)));
+            pending = rest;
+            if blocked.is_empty() {
+                break;
+            }
+            for t in blocked {
+                failed.insert(t.id);
+                reports.push(TaskReport {
+                    task: t,
+                    outcome: Err(AgentError::InvalidInput {
+                        agent: "scheduler",
+                        reason: "a dependency of this task failed".into(),
+                    }),
+                });
+            }
+        }
+        if pending.is_empty() {
+            break;
+        }
+
+        let (mut ready, waiting): (Vec<_>, Vec<_>) = std::mem::take(&mut pending)
             .into_iter()
             .partition(|t| t.dependencies.iter().all(|d| !in_batch.contains(d) || succeeded.contains(d)));
-
-        // Tasks blocked by a failed dependency are failed without running.
-        let (blocked, still_waiting): (Vec<_>, Vec<_>) =
-            waiting.drain(..).partition(|t| t.dependencies.iter().any(|d| failed.contains(d)));
-        for t in blocked {
-            failed.insert(t.id);
-            reports.push(TaskReport {
-                task: t,
-                outcome: Err(AgentError::InvalidInput {
-                    agent: "scheduler",
-                    reason: "a dependency of this task failed".into(),
-                }),
-            });
-        }
-        pending = still_waiting;
+        pending = waiting;
 
         if ready.is_empty() {
             // Remaining tasks wait on each other (cycle) or on unknown ids.
@@ -236,6 +247,33 @@ mod tests {
         assert_eq!(ran.load(Ordering::SeqCst), 2, "dependent never executed");
         assert!(reports.iter().find(|r| r.task.id == b_id).unwrap().outcome.is_err());
         assert_eq!(reports.iter().filter(|r| r.outcome.is_ok()).count(), 1);
+    }
+
+    #[tokio::test]
+    async fn failures_cascade_through_dependency_chains() {
+        let a = task(vec![], Priority::High);
+        let b = task(vec![a.id], Priority::High);
+        let c = task(vec![b.id], Priority::High);
+        let d = task(vec![c.id], Priority::High);
+        let ran = Arc::new(AtomicUsize::new(0));
+        let r = ran.clone();
+        let reports = run_tasks(vec![a, b, c, d], 4, LONG, &CancellationToken::new(), move |_| {
+            let r = r.clone();
+            async move {
+                r.fetch_add(1, Ordering::SeqCst);
+                Err::<(), _>(AgentError::NoSources { agent: "researcher" })
+            }
+        })
+        .await;
+        assert_eq!(ran.load(Ordering::SeqCst), 1, "only the root runs");
+        assert_eq!(reports.len(), 4);
+        let dependency_failures = reports
+            .iter()
+            .filter(
+                |r| matches!(&r.outcome, Err(AgentError::InvalidInput { reason, .. }) if reason.contains("dependency")),
+            )
+            .count();
+        assert_eq!(dependency_failures, 3, "b, c and d are blocked by a failed dependency, not 'unsatisfiable'");
     }
 
     #[tokio::test]

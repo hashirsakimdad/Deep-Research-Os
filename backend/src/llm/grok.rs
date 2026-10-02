@@ -58,12 +58,21 @@ impl GrokProvider {
             api_key,
             model,
             base_url: base_url.trim_end_matches('/').to_string(),
-            retry: RetryPolicy::default(),
+            // Patient enough to ride out per-minute token limits on rate-limited tiers.
+            retry: RetryPolicy::new(6, Duration::from_secs(3), Duration::from_secs(30)),
         })
     }
 
     fn build_body(&self, req: &LlmRequest) -> Value {
-        let mut messages = vec![json!({"role": "system", "content": req.system})];
+        // JSON mode on OpenAI-compatible APIs is rejected unless the messages mention "json".
+        let mentions_json = req.system.to_lowercase().contains("json")
+            || req.messages.iter().any(|m| m.content.to_lowercase().contains("json"));
+        let system = if req.json_mode && !mentions_json {
+            format!("{}\n\nRespond with a single valid JSON object and nothing else.", req.system)
+        } else {
+            req.system.clone()
+        };
+        let mut messages = vec![json!({"role": "system", "content": system})];
         for m in &req.messages {
             let role = match m.role {
                 super::provider::MessageRole::User => "user",
@@ -173,6 +182,25 @@ mod tests {
     fn ok_body(text: &str) -> serde_json::Value {
         json!({"model": "grok-test", "choices": [{"message": {"content": text}}],
                "usage": {"prompt_tokens": 3, "completion_tokens": 4}})
+    }
+
+    #[test]
+    fn json_mode_always_mentions_json() {
+        let p = provider("http://unused");
+        let mut req = request();
+        req.system = "Reply with ONLY: {\"queries\": []}".into();
+        req.messages = vec![LlmMessage::user("write queries")];
+        let body = p.build_body(&req);
+        assert!(body["messages"][0]["content"].as_str().unwrap().to_lowercase().contains("json"));
+
+        // already mentioned: left untouched
+        req.system = "Return JSON only".into();
+        assert_eq!(p.build_body(&req)["messages"][0]["content"], "Return JSON only");
+
+        // not in json mode: left untouched
+        req.system = "plain".into();
+        req.json_mode = false;
+        assert_eq!(p.build_body(&req)["messages"][0]["content"], "plain");
     }
 
     #[tokio::test]
