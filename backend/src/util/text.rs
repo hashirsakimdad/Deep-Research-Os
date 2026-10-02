@@ -68,6 +68,23 @@ pub fn host_of(raw: &str) -> Option<String> {
     Some(host.strip_prefix("www.").unwrap_or(&host).to_string())
 }
 
+/// Returns the excerpt with up to `radius` characters of surrounding source
+/// text, falling back to the excerpt alone if it cannot be located exactly.
+pub fn context_around(content: &str, excerpt: &str, radius: usize) -> String {
+    let (lc, le) = (content.to_lowercase(), excerpt.trim().to_lowercase());
+    // Lowercasing can change byte lengths for some scripts; only trust offsets
+    // when they line up with the original string.
+    if lc.len() == content.len() && !le.is_empty() {
+        if let Some(pos) = lc.find(&le) {
+            let start = (0..=pos.saturating_sub(radius)).rev().find(|i| content.is_char_boundary(*i)).unwrap_or(0);
+            let want_end = (pos + le.len() + radius).min(content.len());
+            let end = (want_end..=content.len()).find(|i| content.is_char_boundary(*i)).unwrap_or(content.len());
+            return content[start..end].to_string();
+        }
+    }
+    excerpt.trim().to_string()
+}
+
 /// Extracts the outermost JSON object/array from text that may be wrapped in
 /// prose or markdown code fences.
 pub fn extract_json(text: &str) -> Option<&str> {
