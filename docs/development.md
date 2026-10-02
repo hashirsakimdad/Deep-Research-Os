@@ -13,6 +13,18 @@ cd backend && cargo run              # migrations run on startup; listens on :80
 cd frontend && npm install && npm run dev   # http://localhost:3000
 ```
 
+## Without Docker (Windows, no WSL)
+
+Docker Desktop needs WSL2. If that is unavailable, use a portable PostgreSQL:
+download the Windows binaries zip from EnterpriseDB, unzip to `D:\postgres`, then run
+
+```powershell
+./scripts/dev-db.ps1          # starts it on port 5433 and creates the `research` database
+```
+
+and set `DATABASE_URL=postgres://research:research@localhost:5433/research` in `.env`.
+Port 5433 avoids clashing with another PostgreSQL already on 5432.
+
 ## Checks
 
 ```bash

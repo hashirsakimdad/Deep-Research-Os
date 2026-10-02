@@ -39,9 +39,14 @@ Implemented and covered by tests (unit tests with mocked LLM, search, fetch and 
 * Next.js dashboard: progress, evidence ledger, workflow graph, live event feed, source/claim explorers,
   contradiction panel, critic panel, report with click-through provenance trace
 
-What has **not** been exercised yet: a run against the live Grok and Tavily APIs (no keys were available to the
-development environment), and `backend/tests/pipeline.rs` (full lifecycle + SQL against PostgreSQL) requires a
-database; without `DATABASE_URL` it skips itself. See [docs/development.md](docs/development.md).
+Verified against a real PostgreSQL 16: migrations, all SQL, and `backend/tests/pipeline.rs` (the full lifecycle
+with scripted LLM/search/fetch: happy path, iteration loop, partial and total task failure, deduplication).
+Also verified in the browser: the dashboard talks to the running backend, a run that the real xAI API rejects
+(bad key) fails cleanly and is shown as such.
+
+What has **not** been exercised yet: a complete run against live Grok and Tavily with valid keys, so real model
+output quality (prompts, extraction accuracy, report quality) is untested. Without `DATABASE_URL`,
+`tests/pipeline.rs` skips itself. See [docs/development.md](docs/development.md).
 
 ## Quick start
 
