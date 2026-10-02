@@ -317,10 +317,14 @@ async fn a_failed_task_does_not_destroy_the_run() {
     assert_eq!(done.status, ResearchStatus::Completed, "error: {:?}", done.error);
     let tasks = repo.list_tasks(run.id).await.unwrap();
     let failed: Vec<_> = tasks.iter().filter(|t| t.status == TaskStatus::Failed).collect();
-    assert_eq!(failed.len(), 1);
-    assert!(failed[0].error.is_some());
+    // the failed question is retried once as a follow-up, and fails again
+    assert_eq!(failed.len(), 2);
+    assert_eq!(failed.iter().map(|t| t.iteration).collect::<std::collections::BTreeSet<_>>().len(), 2);
+    assert!(failed.iter().all(|t| t.error.is_some()));
     assert!(tasks.iter().any(|t| t.status == TaskStatus::Completed));
-    assert!(event_types(&repo, run.id).await.contains(&"task_failed".to_string()));
+    let types = event_types(&repo, run.id).await;
+    assert!(types.contains(&"task_failed".to_string()));
+    assert!(types.contains(&"follow_up_research_failed".to_string()));
 
     // the uncovered question is surfaced honestly in the final report
     let report = repo.latest_report(run.id).await.unwrap().unwrap();

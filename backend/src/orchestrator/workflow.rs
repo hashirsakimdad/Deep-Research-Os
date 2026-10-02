@@ -398,7 +398,21 @@ impl Orchestrator {
             return Err(OrchestratorError::Cancelled(id));
         }
         if ok == 0 {
-            return Err(OrchestratorError::AllTasksFailed(format!("{failed} task(s) failed in iteration {iteration}")));
+            // A failed first pass leaves nothing to report on. A failed follow-up pass does not:
+            // the evidence from earlier iterations stands and the gap is stated in the report.
+            if iteration == 1 {
+                return Err(OrchestratorError::AllTasksFailed(format!(
+                    "{failed} task(s) failed in iteration {iteration}"
+                )));
+            }
+            self.ev(
+                id,
+                "orchestrator",
+                "follow_up_research_failed",
+                format!("All {failed} follow-up task(s) failed; continuing with evidence from earlier iterations"),
+                json!({"iteration": iteration, "failed": failed}),
+            )
+            .await;
         }
         state.sources = self.repo.list_source_refs(id).await?;
         Ok(())
