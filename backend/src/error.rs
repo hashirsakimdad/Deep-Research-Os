@@ -111,6 +111,11 @@ pub enum AgentError {
     Timeout { agent: &'static str },
     #[error("{agent}: cancelled")]
     Cancelled { agent: &'static str },
+    #[error("{agent}: storage failure: {reason}")]
+    Storage {
+        agent: &'static str,
+        reason: String,
+    },
 }
 
 #[derive(Debug, Error)]
