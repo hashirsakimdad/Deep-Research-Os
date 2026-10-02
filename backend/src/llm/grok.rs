@@ -51,16 +51,8 @@ struct WireUsage {
 }
 
 impl GrokProvider {
-    pub fn new(
-        api_key: String,
-        model: String,
-        base_url: String,
-        timeout: Duration,
-    ) -> Result<Self, LlmError> {
-        let client = Client::builder()
-            .timeout(timeout)
-            .build()
-            .map_err(|e| LlmError::Network(e.to_string()))?;
+    pub fn new(api_key: String, model: String, base_url: String, timeout: Duration) -> Result<Self, LlmError> {
+        let client = Client::builder().timeout(timeout).build().map_err(|e| LlmError::Network(e.to_string()))?;
         Ok(Self {
             client,
             api_key,
@@ -102,13 +94,7 @@ impl GrokProvider {
             .json(body)
             .send()
             .await
-            .map_err(|e| {
-                if e.is_timeout() {
-                    LlmError::Timeout
-                } else {
-                    LlmError::Network(e.to_string())
-                }
-            })?;
+            .map_err(|e| if e.is_timeout() { LlmError::Timeout } else { LlmError::Network(e.to_string()) })?;
 
         let status = resp.status();
         if !status.is_success() {
@@ -121,10 +107,7 @@ impl GrokProvider {
             });
         }
 
-        let parsed: WireResponse = resp
-            .json()
-            .await
-            .map_err(|e| LlmError::InvalidResponse(e.to_string()))?;
+        let parsed: WireResponse = resp.json().await.map_err(|e| LlmError::InvalidResponse(e.to_string()))?;
         let content = parsed
             .choices
             .into_iter()
@@ -135,10 +118,9 @@ impl GrokProvider {
         Ok(LlmResponse {
             content,
             model: parsed.model.unwrap_or_else(|| self.model.clone()),
-            usage: parsed.usage.map(|u| Usage {
-                prompt_tokens: u.prompt_tokens,
-                completion_tokens: u.completion_tokens,
-            }),
+            usage: parsed
+                .usage
+                .map(|u| Usage { prompt_tokens: u.prompt_tokens, completion_tokens: u.completion_tokens }),
         })
     }
 }
@@ -210,11 +192,7 @@ mod tests {
     #[tokio::test]
     async fn retries_rate_limits_then_succeeds() {
         let server = MockServer::start().await;
-        Mock::given(method("POST"))
-            .respond_with(ResponseTemplate::new(429))
-            .up_to_n_times(2)
-            .mount(&server)
-            .await;
+        Mock::given(method("POST")).respond_with(ResponseTemplate::new(429)).up_to_n_times(2).mount(&server).await;
         Mock::given(method("POST"))
             .respond_with(ResponseTemplate::new(200).set_body_json(ok_body("ok")))
             .mount(&server)
@@ -238,11 +216,7 @@ mod tests {
     #[tokio::test]
     async fn gives_up_after_bounded_retries() {
         let server = MockServer::start().await;
-        Mock::given(method("POST"))
-            .respond_with(ResponseTemplate::new(503))
-            .expect(3)
-            .mount(&server)
-            .await;
+        Mock::given(method("POST")).respond_with(ResponseTemplate::new(503)).expect(3).mount(&server).await;
         let err = provider(&server.uri()).generate(request()).await.unwrap_err();
         assert!(matches!(err, LlmError::Server { status: 503, .. }));
     }

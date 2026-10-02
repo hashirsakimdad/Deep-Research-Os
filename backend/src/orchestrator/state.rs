@@ -6,8 +6,7 @@ use uuid::Uuid;
 use crate::{
     error::StateError,
     models::{
-        ClaimReference, Critique, ResearchQuestion, ResearchStatus, ResearchTask, SourceReference,
-        VerifiedClaim,
+        ClaimReference, Critique, ResearchQuestion, ResearchStatus, ResearchTask, SourceReference, VerifiedClaim,
     },
 };
 
@@ -69,10 +68,7 @@ impl ResearchState {
 
     pub fn transition(&mut self, to: ResearchStatus) -> Result<(), StateError> {
         if !Self::is_valid_transition(self.status, to) {
-            return Err(StateError::InvalidTransition {
-                from: self.status.to_string(),
-                to: to.to_string(),
-            });
+            return Err(StateError::InvalidTransition { from: self.status.to_string(), to: to.to_string() });
         }
         self.status = to;
         Ok(())

@@ -50,14 +50,37 @@ impl SourceType {
             Self::GovernmentDocument
         } else if h.ends_with(".edu")
             || h.contains(".ac.")
-            || ["arxiv.org", "nature.com", "science.org", "acm.org", "ieee.org", "sciencedirect.com", "springer.com", "nber.org", "ssrn.com", "semanticscholar.org"]
-                .iter()
-                .any(|d| h == *d || h.ends_with(&format!(".{d}")))
-        {
-            Self::AcademicPaper
-        } else if ["reuters.com", "apnews.com", "bbc.com", "nytimes.com", "wsj.com", "ft.com", "bloomberg.com", "theguardian.com", "techcrunch.com", "wired.com", "arstechnica.com"]
+            || [
+                "arxiv.org",
+                "nature.com",
+                "science.org",
+                "acm.org",
+                "ieee.org",
+                "sciencedirect.com",
+                "springer.com",
+                "nber.org",
+                "ssrn.com",
+                "semanticscholar.org",
+            ]
             .iter()
             .any(|d| h == *d || h.ends_with(&format!(".{d}")))
+        {
+            Self::AcademicPaper
+        } else if [
+            "reuters.com",
+            "apnews.com",
+            "bbc.com",
+            "nytimes.com",
+            "wsj.com",
+            "ft.com",
+            "bloomberg.com",
+            "theguardian.com",
+            "techcrunch.com",
+            "wired.com",
+            "arstechnica.com",
+        ]
+        .iter()
+        .any(|d| h == *d || h.ends_with(&format!(".{d}")))
         {
             Self::News
         } else if ["medium.com", "substack.com", "dev.to", "github.io"]

@@ -36,10 +36,7 @@ pub enum LlmError {
 impl LlmError {
     /// Whether retrying the same request may succeed.
     pub fn is_retryable(&self) -> bool {
-        matches!(
-            self,
-            Self::Timeout | Self::RateLimited | Self::Server { .. } | Self::Network(_)
-        )
+        matches!(self, Self::Timeout | Self::RateLimited | Self::Server { .. } | Self::Network(_))
     }
 }
 
@@ -84,10 +81,7 @@ impl FetchError {
 #[derive(Debug, Error)]
 pub enum AgentError {
     #[error("{agent}: invalid input: {reason}")]
-    InvalidInput {
-        agent: &'static str,
-        reason: String,
-    },
+    InvalidInput { agent: &'static str, reason: String },
     #[error("{agent}: llm failure: {source}")]
     Llm {
         agent: &'static str,
@@ -95,10 +89,7 @@ pub enum AgentError {
         source: LlmError,
     },
     #[error("{agent}: output failed validation: {reason}")]
-    InvalidOutput {
-        agent: &'static str,
-        reason: String,
-    },
+    InvalidOutput { agent: &'static str, reason: String },
     #[error("{agent}: search failure: {source}")]
     Search {
         agent: &'static str,
@@ -112,10 +103,7 @@ pub enum AgentError {
     #[error("{agent}: cancelled")]
     Cancelled { agent: &'static str },
     #[error("{agent}: storage failure: {reason}")]
-    Storage {
-        agent: &'static str,
-        reason: String,
-    },
+    Storage { agent: &'static str, reason: String },
 }
 
 #[derive(Debug, Error)]

@@ -1,4 +1,4 @@
-﻿use std::time::Duration;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use reqwest::Client;
@@ -38,20 +38,16 @@ impl HttpFetcher {
             .redirect(reqwest::redirect::Policy::limited(5))
             .build()
             .map_err(|e| FetchError::Network(e.to_string()))?;
-        Ok(Self {
-            client,
-            retry: RetryPolicy::new(2, Duration::from_millis(400), Duration::from_secs(2)),
-        })
+        Ok(Self { client, retry: RetryPolicy::new(2, Duration::from_millis(400), Duration::from_secs(2)) })
     }
 
     async fn attempt(&self, url: &str) -> Result<FetchedPage, FetchError> {
-        let mut resp = self.client.get(url).send().await.map_err(|e| {
-            if e.is_timeout() {
-                FetchError::Timeout
-            } else {
-                FetchError::Network(e.to_string())
-            }
-        })?;
+        let mut resp = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| if e.is_timeout() { FetchError::Timeout } else { FetchError::Network(e.to_string()) })?;
         if !resp.status().is_success() {
             return Err(FetchError::Status(resp.status().as_u16()));
         }
@@ -75,11 +71,7 @@ impl HttpFetcher {
             }
         }
         let raw = String::from_utf8_lossy(&body);
-        let page = if is_html {
-            html_to_text(&raw)
-        } else {
-            FetchedPage { title: None, text: collapse_ws(&raw) }
-        };
+        let page = if is_html { html_to_text(&raw) } else { FetchedPage { title: None, text: collapse_ws(&raw) } };
         if page.text.chars().count() < MIN_TEXT_CHARS {
             return Err(FetchError::Empty);
         }
@@ -102,9 +94,8 @@ fn collapse_ws(s: &str) -> String {
 /// tags, keeps paragraph boundaries, decodes common entities.
 pub fn html_to_text(html: &str) -> FetchedPage {
     const SKIP: [&str; 9] = ["script", "style", "noscript", "nav", "footer", "header", "svg", "title", "head"];
-    const BLOCK: [&str; 14] = [
-        "p", "div", "br", "li", "ul", "ol", "h1", "h2", "h3", "h4", "tr", "section", "article", "blockquote",
-    ];
+    const BLOCK: [&str; 14] =
+        ["p", "div", "br", "li", "ul", "ol", "h1", "h2", "h3", "h4", "tr", "section", "article", "blockquote"];
 
     let lower = html.to_lowercase();
     let title = find_between(html, &lower, "<title", "</title>")
@@ -124,11 +115,7 @@ pub fn html_to_text(html: &str) -> FetchedPage {
         }
         let Some(close) = html[i..].find('>').map(|p| i + p) else { break };
         let tag_src = &lower[i + 1..close];
-        let name: String = tag_src
-            .trim_start_matches('/')
-            .chars()
-            .take_while(|c| c.is_ascii_alphanumeric())
-            .collect();
+        let name: String = tag_src.trim_start_matches('/').chars().take_while(|c| c.is_ascii_alphanumeric()).collect();
         let is_closing = tag_src.starts_with('/');
         i = close + 1;
         if !is_closing && SKIP.contains(&name.as_str()) {
@@ -142,12 +129,7 @@ pub fn html_to_text(html: &str) -> FetchedPage {
         }
     }
 
-    let text = decode_entities(&out)
-        .lines()
-        .map(collapse_ws)
-        .filter(|l| !l.is_empty())
-        .collect::<Vec<_>>()
-        .join("\n");
+    let text = decode_entities(&out).lines().map(collapse_ws).filter(|l| !l.is_empty()).collect::<Vec<_>>().join("\n");
     FetchedPage { title, text }
 }
 
@@ -244,4 +226,3 @@ mod tests {
         assert!(matches!(fetcher.fetch(&server.uri()).await, Err(FetchError::Empty)));
     }
 }
-

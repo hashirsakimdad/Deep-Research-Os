@@ -92,23 +92,21 @@ impl ContradictionAgent {
         }
         let sources: HashMap<Uuid, Uuid> = group.claims.iter().map(|c| (c.id, c.source_id)).collect();
         let payload = serde_json::to_string_pretty(&group.claims).unwrap_or_default();
-        let request = LlmRequest::json(
-            NAME,
-            SYSTEM,
-            format!("Research question: {}\n\nClaims:\n{payload}", group.question),
-        );
-        let result: Result<RawPairs, AgentError> = generate_structured(self.llm.as_ref(), NAME, request, |r: &RawPairs| {
-            for p in &r.pairs {
-                let (Some(sa), Some(sb)) = (sources.get(&p.claim_a), sources.get(&p.claim_b)) else {
-                    return Err("a claim id is not in the request".into());
-                };
-                if p.claim_a == p.claim_b || sa == sb {
-                    return Err("pairs must be two claims from different sources".into());
+        let request =
+            LlmRequest::json(NAME, SYSTEM, format!("Research question: {}\n\nClaims:\n{payload}", group.question));
+        let result: Result<RawPairs, AgentError> =
+            generate_structured(self.llm.as_ref(), NAME, request, |r: &RawPairs| {
+                for p in &r.pairs {
+                    let (Some(sa), Some(sb)) = (sources.get(&p.claim_a), sources.get(&p.claim_b)) else {
+                        return Err("a claim id is not in the request".into());
+                    };
+                    if p.claim_a == p.claim_b || sa == sb {
+                        return Err("pairs must be two claims from different sources".into());
+                    }
                 }
-            }
-            Ok(())
-        })
-        .await;
+                Ok(())
+            })
+            .await;
 
         match result {
             Ok(raw) => raw
@@ -151,7 +149,13 @@ mod tests {
     use crate::llm::structured::testing::ScriptedLlm;
 
     fn brief(text: &str) -> ClaimBrief {
-        ClaimBrief { id: Uuid::new_v4(), text: text.into(), source_id: Uuid::new_v4(), source_title: "S".into(), published_at: None }
+        ClaimBrief {
+            id: Uuid::new_v4(),
+            text: text.into(),
+            source_id: Uuid::new_v4(),
+            source_title: "S".into(),
+            published_at: None,
+        }
     }
 
     fn input(claims: Vec<ClaimBrief>) -> ContradictionInput {
@@ -166,7 +170,9 @@ mod tests {
               {{"claim_a":"{a}","claim_b":"{b}","kind":"METRIC_DIFFERENCE","explanation":"speed vs debugging"}},
               {{"claim_a":"{a}","claim_b":"{c}","kind":"DIRECT_CONTRADICTION","explanation":"same metric, opposite sign"}},
               {{"claim_a":"{b}","claim_b":"{c}","kind":"NO_CONFLICT","explanation":"compatible"}}]}}"#,
-            a = a.id, b = b.id, c = c.id
+            a = a.id,
+            b = b.id,
+            c = c.id
         );
         let llm = Arc::new(ScriptedLlm::ok(&[&reply]));
         let out = ContradictionAgent::new(llm).execute(input(vec![a.clone(), b, c.clone()])).await.unwrap();
@@ -180,8 +186,15 @@ mod tests {
     async fn rejects_unknown_ids_and_same_source_pairs() {
         let (a, mut b) = (brief("x"), brief("y"));
         b.source_id = a.source_id;
-        let same_source = format!(r#"{{"pairs":[{{"claim_a":"{}","claim_b":"{}","kind":"DIRECT_CONTRADICTION","explanation":"e"}}]}}"#, a.id, b.id);
-        let unknown = format!(r#"{{"pairs":[{{"claim_a":"{}","claim_b":"{}","kind":"DIRECT_CONTRADICTION","explanation":"e"}}]}}"#, a.id, Uuid::new_v4());
+        let same_source = format!(
+            r#"{{"pairs":[{{"claim_a":"{}","claim_b":"{}","kind":"DIRECT_CONTRADICTION","explanation":"e"}}]}}"#,
+            a.id, b.id
+        );
+        let unknown = format!(
+            r#"{{"pairs":[{{"claim_a":"{}","claim_b":"{}","kind":"DIRECT_CONTRADICTION","explanation":"e"}}]}}"#,
+            a.id,
+            Uuid::new_v4()
+        );
         let llm = Arc::new(ScriptedLlm::ok(&[&same_source, &unknown, r#"{"pairs":[]}"#]));
         let out = ContradictionAgent::new(llm.clone()).execute(input(vec![a, b])).await.unwrap();
         assert!(out.is_empty());

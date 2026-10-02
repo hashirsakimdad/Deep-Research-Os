@@ -200,14 +200,12 @@ impl Repository {
     // ----- runs -----------------------------------------------------------
 
     pub async fn create_run(&self, query: &str) -> Result<ResearchRun, sqlx::Error> {
-        let row = sqlx::query(
-            "INSERT INTO research_runs (id, query, status) VALUES ($1, $2, $3) RETURNING *",
-        )
-        .bind(Uuid::new_v4())
-        .bind(query)
-        .bind(ResearchStatus::Planning.as_str())
-        .fetch_one(&self.pool)
-        .await?;
+        let row = sqlx::query("INSERT INTO research_runs (id, query, status) VALUES ($1, $2, $3) RETURNING *")
+            .bind(Uuid::new_v4())
+            .bind(query)
+            .bind(ResearchStatus::Planning.as_str())
+            .fetch_one(&self.pool)
+            .await?;
         run_from_row(&row)
     }
 
@@ -320,12 +318,7 @@ impl Repository {
         Ok(())
     }
 
-    pub async fn set_task_status(
-        &self,
-        id: Uuid,
-        status: TaskStatus,
-        error: Option<&str>,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn set_task_status(&self, id: Uuid, status: TaskStatus, error: Option<&str>) -> Result<(), sqlx::Error> {
         sqlx::query(
             "UPDATE research_tasks
              SET status = $2, error = $3,
@@ -407,11 +400,7 @@ impl Repository {
 
     /// Inserts a claim and its evidence atomically. Returns the stored claim id,
     /// or `None` if the same statement from the same source already exists.
-    pub async fn insert_claim_with_evidence(
-        &self,
-        claim: &Claim,
-        excerpt: &str,
-    ) -> Result<Option<Uuid>, sqlx::Error> {
+    pub async fn insert_claim_with_evidence(&self, claim: &Claim, excerpt: &str) -> Result<Option<Uuid>, sqlx::Error> {
         let mut tx = self.pool.begin().await?;
         let inserted = sqlx::query(
             "INSERT INTO claims
@@ -533,11 +522,8 @@ impl Repository {
     /// Returns true if newly stored. Pairs are stored in canonical order so the
     /// same pair is never recorded twice.
     pub async fn insert_contradiction(&self, c: &Contradiction) -> Result<bool, sqlx::Error> {
-        let (a, b) = if c.claim_a_id <= c.claim_b_id {
-            (c.claim_a_id, c.claim_b_id)
-        } else {
-            (c.claim_b_id, c.claim_a_id)
-        };
+        let (a, b) =
+            if c.claim_a_id <= c.claim_b_id { (c.claim_a_id, c.claim_b_id) } else { (c.claim_b_id, c.claim_a_id) };
         let r = sqlx::query(
             "INSERT INTO contradictions (id, research_run_id, claim_a_id, claim_b_id, kind, explanation)
              VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (claim_a_id, claim_b_id) DO NOTHING",
@@ -583,10 +569,7 @@ impl Repository {
     }
 
     pub async fn mark_report_final(&self, id: Uuid) -> Result<(), sqlx::Error> {
-        sqlx::query("UPDATE reports SET is_final = TRUE WHERE id = $1")
-            .bind(id)
-            .execute(&self.pool)
-            .await?;
+        sqlx::query("UPDATE reports SET is_final = TRUE WHERE id = $1").bind(id).execute(&self.pool).await?;
         Ok(())
     }
 
@@ -662,17 +645,15 @@ impl Repository {
         after_id: i64,
         limit: i64,
     ) -> Result<Vec<AgentEvent>, sqlx::Error> {
-        sqlx::query(
-            "SELECT * FROM agent_events WHERE research_id = $1 AND id > $2 ORDER BY id LIMIT $3",
-        )
-        .bind(research_id)
-        .bind(after_id)
-        .bind(limit)
-        .fetch_all(&self.pool)
-        .await?
-        .iter()
-        .map(event_from_row)
-        .collect()
+        sqlx::query("SELECT * FROM agent_events WHERE research_id = $1 AND id > $2 ORDER BY id LIMIT $3")
+            .bind(research_id)
+            .bind(after_id)
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await?
+            .iter()
+            .map(event_from_row)
+            .collect()
     }
 
     // ----- stats ------------------------------------------------------------

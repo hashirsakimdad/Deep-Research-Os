@@ -19,7 +19,9 @@ async fn main() -> anyhow::Result<()> {
     // Accept a .env in the backend dir or the repo root.
     let _ = dotenvy::dotenv().or_else(|_| dotenvy::from_filename("../.env"));
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info,deep_research_os_backend=debug")))
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info,deep_research_os_backend=debug")),
+        )
         .init();
 
     let config = Config::from_env().context("invalid configuration")?;
@@ -41,7 +43,8 @@ async fn main() -> anyhow::Result<()> {
 
     let cancel = CancellationToken::new();
     let events = Arc::new(EventBus::new(repo.clone()));
-    let orchestrator = Arc::new(Orchestrator::new(repo.clone(), events, llm, search, fetcher, config.limits.clone(), cancel.clone()));
+    let orchestrator =
+        Arc::new(Orchestrator::new(repo.clone(), events, llm, search, fetcher, config.limits.clone(), cancel.clone()));
 
     let cors = CorsLayer::new()
         .allow_origin(config.cors_origin.parse::<HeaderValue>().context("invalid CORS_ORIGIN")?)
@@ -49,7 +52,9 @@ async fn main() -> anyhow::Result<()> {
         .allow_headers(Any);
     let app = api::router(AppState { repo, orchestrator }, cors);
 
-    let listener = tokio::net::TcpListener::bind(&config.bind_addr).await.with_context(|| format!("cannot bind {}", config.bind_addr))?;
+    let listener = tokio::net::TcpListener::bind(&config.bind_addr)
+        .await
+        .with_context(|| format!("cannot bind {}", config.bind_addr))?;
     tracing::info!(addr = %config.bind_addr, model = %config.grok_model, "deep research os listening");
     axum::serve(listener, app)
         .with_graceful_shutdown(async move {

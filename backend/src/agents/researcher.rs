@@ -147,11 +147,7 @@ impl ResearcherAgent {
             NAME,
             LlmRequest::json(NAME, QUERY_SYSTEM, user),
             |l: &QueryList| {
-                if l.queries.iter().any(|q| !q.trim().is_empty()) {
-                    Ok(())
-                } else {
-                    Err("no non-empty queries".into())
-                }
+                if l.queries.iter().any(|q| !q.trim().is_empty()) { Ok(()) } else { Err("no non-empty queries".into()) }
             },
         )
         .await?;
@@ -186,17 +182,23 @@ impl ResearcherAgent {
             match outcome {
                 Ok(results) => {
                     for r in results {
-                        if let Some(normalized) = normalize_url(&r.url) {
-                            if seen.insert(normalized.clone()) {
-                                candidates.push(Candidate { result: r, normalized });
-                            }
+                        if let Some(normalized) = normalize_url(&r.url)
+                            && seen.insert(normalized.clone())
+                        {
+                            candidates.push(Candidate { result: r, normalized });
                         }
                     }
                 }
                 Err(e) => {
                     tracing::warn!(query = %query, error = %e, "search failed");
                     self.events
-                        .emit(input.research_id, NAME, "search_failed", format!("Search failed for '{query}': {e}"), json!({"task_id": input.task_id}))
+                        .emit(
+                            input.research_id,
+                            NAME,
+                            "search_failed",
+                            format!("Search failed for '{query}': {e}"),
+                            json!({"task_id": input.task_id}),
+                        )
                         .await;
                 }
             }
@@ -220,11 +222,7 @@ impl ResearcherAgent {
         }
     }
 
-    async fn mine_source(
-        &self,
-        input: &ResearchInput,
-        candidate: Candidate,
-    ) -> Option<(Source, Vec<NewClaim>, usize)> {
+    async fn mine_source(&self, input: &ResearchInput, candidate: Candidate) -> Option<(Source, Vec<NewClaim>, usize)> {
         let (content, page_title) = self.load_content(&candidate).await?;
         let r = &candidate.result;
         let host = host_of(&r.url).unwrap_or_default();
@@ -272,10 +270,7 @@ impl ResearcherAgent {
             retrieved_at: Utc::now(),
             content_hash: content_hash(&content),
             content,
-            source_type: extraction
-                .source_type
-                .parse()
-                .unwrap_or_else(|_| SourceType::guess_from_host(&host)),
+            source_type: extraction.source_type.parse().unwrap_or_else(|_| SourceType::guess_from_host(&host)),
             nature: extraction.nature.parse().unwrap_or(SourceNature::Unknown),
         };
 
@@ -285,7 +280,8 @@ impl ResearcherAgent {
         for c in extraction.claims.into_iter().take(max_claims) {
             let text = c.text.trim().to_string();
             // Provenance guard: a claim must be backed by text actually on the page.
-            if text.is_empty() || !excerpt_in_content(&c.excerpt, &source.content) || !seen.insert(text.to_lowercase()) {
+            if text.is_empty() || !excerpt_in_content(&c.excerpt, &source.content) || !seen.insert(text.to_lowercase())
+            {
                 rejected += 1;
                 continue;
             }
@@ -354,13 +350,23 @@ mod tests {
     use crate::{
         agents::agent::NoopSink,
         llm::structured::testing::ScriptedLlm,
-        tools::{fetch::{FetchedPage, testing::MockFetcher}, search::testing::MockSearch},
+        tools::{
+            fetch::{FetchedPage, testing::MockFetcher},
+            search::testing::MockSearch,
+        },
     };
 
     const PAGE: &str = "In a controlled experiment, developers using an AI assistant completed the task 55% faster than the control group. The study included 95 professional developers recruited online and measured completion time only.";
 
     fn hit(url: &str) -> SearchResult {
-        SearchResult { title: "T".into(), url: url.into(), snippet: String::new(), source: host_of(url).unwrap(), published_at: None, content: None }
+        SearchResult {
+            title: "T".into(),
+            url: url.into(),
+            snippet: String::new(),
+            source: host_of(url).unwrap(),
+            published_at: None,
+            content: None,
+        }
     }
 
     fn agent(llm: Arc<ScriptedLlm>, search: MockSearch, fetcher: MockFetcher) -> ResearcherAgent {
@@ -378,20 +384,27 @@ mod tests {
     }
 
     fn extraction(claims: &str) -> String {
-        format!(r#"{{"title":"Study","publisher":"Univ","published_at":"2024-05-01","source_type":"academic_paper","nature":"primary","claims":{claims}}}"#)
+        format!(
+            r#"{{"title":"Study","publisher":"Univ","published_at":"2024-05-01","source_type":"academic_paper","nature":"primary","claims":{claims}}}"#
+        )
     }
 
     #[tokio::test]
     async fn extracts_claims_and_drops_ones_without_a_verbatim_excerpt() {
         let good = r#"{"text":"AI assistant users finished the task 55% faster.","excerpt":"completed the task 55% faster than the control group","confidence":0.9}"#;
-        let fabricated = r#"{"text":"Quality improved 30%.","excerpt":"code quality improved by 30 percent","confidence":0.9}"#;
+        let fabricated =
+            r#"{"text":"Quality improved 30%.","excerpt":"code quality improved by 30 percent","confidence":0.9}"#;
         let llm = Arc::new(ScriptedLlm::ok(&[
             r#"{"queries":["ai coding assistant productivity study"]}"#,
             &extraction(&format!("[{good},{fabricated}]")),
         ]));
         let search = MockSearch::with_default(vec![hit("https://arxiv.org/abs/1")]);
         let fetcher = MockFetcher::default();
-        fetcher.pages.lock().unwrap().insert("https://arxiv.org/abs/1".into(), FetchedPage { title: None, text: PAGE.into() });
+        fetcher
+            .pages
+            .lock()
+            .unwrap()
+            .insert("https://arxiv.org/abs/1".into(), FetchedPage { title: None, text: PAGE.into() });
 
         let out = agent(llm, search, fetcher).execute(input()).await.unwrap();
         assert_eq!(out.sources.len(), 1);
@@ -404,11 +417,7 @@ mod tests {
 
     #[tokio::test]
     async fn deduplicates_urls_across_queries_and_prefers_institutional_sources() {
-        let llm = Arc::new(ScriptedLlm::ok(&[
-            r#"{"queries":["a b","c d"]}"#,
-            &extraction("[]"),
-            &extraction("[]"),
-        ]));
+        let llm = Arc::new(ScriptedLlm::ok(&[r#"{"queries":["a b","c d"]}"#, &extraction("[]"), &extraction("[]")]));
         let search = MockSearch::with_default(vec![
             hit("https://blog.example.com/post"),
             hit("https://www.nist.gov/doc/?utm_source=x"),
@@ -441,7 +450,13 @@ mod tests {
         let mut h = hit("https://example.com/x");
         h.content = Some(PAGE.into());
         let fetcher = Arc::new(MockFetcher::default());
-        let a = ResearcherAgent::new(llm, Arc::new(MockSearch::with_default(vec![h])), fetcher.clone(), Arc::new(NoopSink), Limits::default());
+        let a = ResearcherAgent::new(
+            llm,
+            Arc::new(MockSearch::with_default(vec![h])),
+            fetcher.clone(),
+            Arc::new(NoopSink),
+            Limits::default(),
+        );
         let out = a.execute(input()).await.unwrap();
         assert_eq!(out.sources.len(), 1);
         assert!(fetcher.calls.lock().unwrap().is_empty());

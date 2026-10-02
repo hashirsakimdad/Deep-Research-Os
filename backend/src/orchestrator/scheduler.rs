@@ -41,16 +41,11 @@ where
     while !pending.is_empty() {
         let (mut ready, mut waiting): (Vec<_>, Vec<_>) = std::mem::take(&mut pending)
             .into_iter()
-            .partition(|t| {
-                t.dependencies
-                    .iter()
-                    .all(|d| !in_batch.contains(d) || succeeded.contains(d))
-            });
+            .partition(|t| t.dependencies.iter().all(|d| !in_batch.contains(d) || succeeded.contains(d)));
 
         // Tasks blocked by a failed dependency are failed without running.
-        let (blocked, still_waiting): (Vec<_>, Vec<_>) = waiting
-            .drain(..)
-            .partition(|t| t.dependencies.iter().any(|d| failed.contains(d)));
+        let (blocked, still_waiting): (Vec<_>, Vec<_>) =
+            waiting.drain(..).partition(|t| t.dependencies.iter().any(|d| failed.contains(d)));
         for t in blocked {
             failed.insert(t.id);
             reports.push(TaskReport {
@@ -177,16 +172,22 @@ mod tests {
             task(vec![], Priority::Low),
         );
         let (slow_id, bad_id) = (slow.id, bad.id);
-        let reports = run_tasks(vec![ok1, slow, bad, ok2], 4, Duration::from_millis(50), &CancellationToken::new(), move |t| async move {
-            if t.id == slow_id {
-                tokio::time::sleep(Duration::from_secs(5)).await;
-                Ok(())
-            } else if t.id == bad_id {
-                Err(AgentError::NoSources { agent: "researcher" })
-            } else {
-                Ok(())
-            }
-        })
+        let reports = run_tasks(
+            vec![ok1, slow, bad, ok2],
+            4,
+            Duration::from_millis(50),
+            &CancellationToken::new(),
+            move |t| async move {
+                if t.id == slow_id {
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                    Ok(())
+                } else if t.id == bad_id {
+                    Err(AgentError::NoSources { agent: "researcher" })
+                } else {
+                    Ok(())
+                }
+            },
+        )
         .await;
         let ok = reports.iter().filter(|r| r.outcome.is_ok()).count();
         assert_eq!(ok, 2);

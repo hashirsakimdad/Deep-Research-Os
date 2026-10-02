@@ -1,4 +1,4 @@
-﻿//! The research lifecycle:
+//! The research lifecycle:
 //! plan -> research (concurrent) -> verify -> contradictions -> synthesize ->
 //! critique -> (more research | final report), bounded by `max_iterations`.
 
@@ -18,8 +18,8 @@ use super::{
 };
 use crate::{
     agents::{
-        Agent, ContradictionAgent, CriticAgent, EventSink, PlannerAgent, ResearcherAgent,
-        SynthesizerAgent, VerifierAgent,
+        Agent, ContradictionAgent, CriticAgent, EventSink, PlannerAgent, ResearcherAgent, SynthesizerAgent,
+        VerifierAgent,
         contradiction::{ClaimBrief, ClaimGroup, ContradictionInput},
         critic::{CritiqueClaim, CritiqueDraft, CritiqueInput},
         planner::{PlannerInput, ResearchPlan},
@@ -173,10 +173,19 @@ impl Orchestrator {
             Err(e) => {
                 tracing::error!(research_id = %id, error = %e, "research run failed");
                 let iteration = self.repo.get_run(id).await.ok().flatten().map(|r| r.iteration).unwrap_or(1);
-                if let Err(db) = self.repo.set_run_status(id, ResearchStatus::Failed, iteration, Some(&e.to_string())).await {
+                if let Err(db) =
+                    self.repo.set_run_status(id, ResearchStatus::Failed, iteration, Some(&e.to_string())).await
+                {
                     tracing::error!(error = %db, "could not record run failure");
                 }
-                self.ev(id, "orchestrator", "research_failed", format!("Research failed: {e}"), json!({"error": e.to_string()})).await;
+                self.ev(
+                    id,
+                    "orchestrator",
+                    "research_failed",
+                    format!("Research failed: {e}"),
+                    json!({"error": e.to_string()}),
+                )
+                .await;
             }
         }
     }
@@ -194,19 +203,37 @@ impl Orchestrator {
     async fn execute(&self, run: &ResearchRun) -> Result<(), OrchestratorError> {
         let id = run.id;
         let mut state = ResearchState::new(id, run.query.clone(), self.limits.max_iterations);
-        self.ev(id, "orchestrator", "research_started", "Research run started".into(), json!({"query": run.query, "max_iterations": state.max_iterations})).await;
+        self.ev(
+            id,
+            "orchestrator",
+            "research_started",
+            "Research run started".into(),
+            json!({"query": run.query, "max_iterations": state.max_iterations}),
+        )
+        .await;
 
         // ---- plan -------------------------------------------------------
         self.ev(id, "planner", "planning_started", "Planning research questions".into(), json!({})).await;
         let plan = self
             .planner
-            .execute(PlannerInput { research_id: id, query: run.query.clone(), max_questions: self.limits.max_tasks_per_iteration })
+            .execute(PlannerInput {
+                research_id: id,
+                query: run.query.clone(),
+                max_questions: self.limits.max_tasks_per_iteration,
+            })
             .await?;
         let (questions, tasks) = build_plan_records(id, &plan, self.limits.max_tasks_per_iteration);
         self.repo.insert_questions(&questions).await?;
         for t in &tasks {
             self.repo.insert_task(t).await?;
-            self.ev(id, "planner", "task_created", format!("Task: {}", t.question), json!({"task_id": t.id, "priority": t.priority, "iteration": 1})).await;
+            self.ev(
+                id,
+                "planner",
+                "task_created",
+                format!("Task: {}", t.question),
+                json!({"task_id": t.id, "priority": t.priority, "iteration": 1}),
+            )
+            .await;
         }
         self.ev(
             id,
@@ -274,17 +301,38 @@ impl Orchestrator {
                         .collect();
                     state.begin_next_iteration()?;
                     self.repo.set_run_status(id, ResearchStatus::Researching, state.iteration as i32, None).await?;
-                    self.ev(id, "orchestrator", "iteration_started", format!("Starting iteration {}", state.iteration), json!({"iteration": state.iteration})).await;
+                    self.ev(
+                        id,
+                        "orchestrator",
+                        "iteration_started",
+                        format!("Starting iteration {}", state.iteration),
+                        json!({"iteration": state.iteration}),
+                    )
+                    .await;
                     for f in &follow_ups {
                         let task = follow_up_task(id, f, state.iteration as i32);
                         self.repo.insert_task(&task).await?;
-                        self.ev(id, "orchestrator", "task_created", format!("Task: {}", task.question), json!({"task_id": task.id, "iteration": task.iteration, "follow_up": true})).await;
+                        self.ev(
+                            id,
+                            "orchestrator",
+                            "task_created",
+                            format!("Task: {}", task.question),
+                            json!({"task_id": task.id, "iteration": task.iteration, "follow_up": true}),
+                        )
+                        .await;
                         state.tasks.push(task);
                     }
                 }
                 decision => {
-                    self.finalize(&mut state, &report, &critique, &uncovered, critic_available, decision == ReviewDecision::AcceptWithLimitations)
-                        .await?;
+                    self.finalize(
+                        &mut state,
+                        &report,
+                        &critique,
+                        &uncovered,
+                        critic_available,
+                        decision == ReviewDecision::AcceptWithLimitations,
+                    )
+                    .await?;
                     return Ok(());
                 }
             }
@@ -306,12 +354,20 @@ impl Orchestrator {
             id,
             "orchestrator",
             "parallel_research_started",
-            format!("Running {} research task(s) concurrently (limit {})", batch.len(), self.limits.max_concurrent_tasks),
+            format!(
+                "Running {} research task(s) concurrently (limit {})",
+                batch.len(),
+                self.limits.max_concurrent_tasks
+            ),
             json!({"tasks": batch.len(), "iteration": iteration}),
         )
         .await;
 
-        let reports = run_tasks(batch, self.limits.max_concurrent_tasks, self.limits.task_timeout, &self.cancel, |task| self.research_task(task)).await;
+        let reports =
+            run_tasks(batch, self.limits.max_concurrent_tasks, self.limits.task_timeout, &self.cancel, |task| {
+                self.research_task(task)
+            })
+            .await;
 
         let (mut ok, mut failed) = (0usize, 0usize);
         for r in reports {
@@ -323,7 +379,14 @@ impl Orchestrator {
                 Err(e) => {
                     failed += 1;
                     self.repo.set_task_status(r.task.id, TaskStatus::Failed, Some(&e.to_string())).await?;
-                    self.ev(id, "researcher", "task_failed", format!("Task failed: {} ({e})", r.task.question), json!({"task_id": r.task.id, "error": e.to_string()})).await;
+                    self.ev(
+                        id,
+                        "researcher",
+                        "task_failed",
+                        format!("Task failed: {} ({e})", r.task.question),
+                        json!({"task_id": r.task.id, "error": e.to_string()}),
+                    )
+                    .await;
                     TaskStatus::Failed
                 }
             };
@@ -345,7 +408,14 @@ impl Orchestrator {
     async fn research_task(&self, task: ResearchTask) -> Result<(usize, usize), AgentError> {
         let id = task.research_run_id;
         self.repo.set_task_status(task.id, TaskStatus::Running, None).await.map_err(storage)?;
-        self.ev(id, "researcher", "task_started", format!("Researching: {}", task.question), json!({"task_id": task.id})).await;
+        self.ev(
+            id,
+            "researcher",
+            "task_started",
+            format!("Researching: {}", task.question),
+            json!({"task_id": task.id}),
+        )
+        .await;
 
         let findings: ResearchFindings = self
             .researcher
@@ -389,7 +459,14 @@ impl Orchestrator {
             };
             if let Some(claim_id) = self.repo.insert_claim_with_evidence(&claim, &c.excerpt).await.map_err(storage)? {
                 claims += 1;
-                self.ev(id, "researcher", "claim_extracted", c.text.clone(), json!({"task_id": task.id, "claim_id": claim_id, "source_id": source_id})).await;
+                self.ev(
+                    id,
+                    "researcher",
+                    "claim_extracted",
+                    c.text.clone(),
+                    json!({"task_id": task.id, "claim_id": claim_id, "source_id": source_id}),
+                )
+                .await;
             }
         }
         self.repo.set_task_status(task.id, TaskStatus::Completed, None).await.map_err(storage)?;
@@ -407,18 +484,26 @@ impl Orchestrator {
     async fn verify_phase(&self, state: &ResearchState) -> Result<(), OrchestratorError> {
         let id = state.research_id;
         let pending = self.repo.claim_records(id, Some(SupportLevel::Unverified), Some(state.iteration as i32)).await?;
-        self.ev(id, "verifier", "verification_started", format!("Verifying {} claim(s)", pending.len()), json!({"claims": pending.len()})).await;
+        self.ev(
+            id,
+            "verifier",
+            "verification_started",
+            format!("Verifying {} claim(s)", pending.len()),
+            json!({"claims": pending.len()}),
+        )
+        .await;
 
         let mut contents: HashMap<Uuid, String> = HashMap::new();
         let mut items = Vec::with_capacity(pending.len());
         for r in &pending {
-            if !contents.contains_key(&r.source.id) {
-                if let Some(s) = self.repo.get_source(r.source.id).await? {
-                    contents.insert(s.id, s.content);
-                }
+            if !contents.contains_key(&r.source.id)
+                && let Some(s) = self.repo.get_source(r.source.id).await?
+            {
+                contents.insert(s.id, s.content);
             }
             let excerpt = r.excerpt();
-            let context = contents.get(&r.source.id).map(|c| context_around(c, &excerpt, 500)).unwrap_or_else(|| excerpt.clone());
+            let context =
+                contents.get(&r.source.id).map(|c| context_around(c, &excerpt, 500)).unwrap_or_else(|| excerpt.clone());
             items.push(VerifyItem {
                 claim_id: r.claim.id,
                 claim: r.claim.text.clone(),
@@ -493,7 +578,14 @@ impl Orchestrator {
                     .collect(),
             });
         }
-        self.ev(id, "contradiction_detector", "contradiction_analysis_started", format!("Comparing claims in {} group(s)", groups.len()), json!({"groups": groups.len()})).await;
+        self.ev(
+            id,
+            "contradiction_detector",
+            "contradiction_analysis_started",
+            format!("Comparing claims in {} group(s)", groups.len()),
+            json!({"groups": groups.len()}),
+        )
+        .await;
 
         let findings = match self.contradiction.execute(ContradictionInput { research_id: id, groups }).await {
             Ok(f) => f,
@@ -529,7 +621,14 @@ impl Orchestrator {
                 Err(e) => tracing::error!(error = %e, "could not store contradiction"),
             }
         }
-        self.ev(id, "contradiction_detector", "contradiction_analysis_completed", format!("{recorded} notable disagreement(s) recorded"), json!({"recorded": recorded})).await;
+        self.ev(
+            id,
+            "contradiction_detector",
+            "contradiction_analysis_completed",
+            format!("{recorded} notable disagreement(s) recorded"),
+            json!({"recorded": recorded}),
+        )
+        .await;
     }
 
     async fn synthesis_phase(
@@ -542,7 +641,9 @@ impl Orchestrator {
         let excluded = records.iter().filter(|r| !r.claim.status.is_citable()).count();
         records.retain(|r| r.claim.status.is_citable());
         if records.is_empty() {
-            return Err(OrchestratorError::Other("no claim survived verification; there is no evidence to build a report on".into()));
+            return Err(OrchestratorError::Other(
+                "no claim survived verification; there is no evidence to build a report on".into(),
+            ));
         }
         // Strongest evidence first, then cap to bound prompt size.
         records.sort_by(|a, b| {
@@ -557,14 +658,17 @@ impl Orchestrator {
             .list_contradictions(id)
             .await?
             .into_iter()
-            .filter(|c| records.iter().any(|r| r.claim.id == c.claim_a_id) && records.iter().any(|r| r.claim.id == c.claim_b_id))
+            .filter(|c| {
+                records.iter().any(|r| r.claim.id == c.claim_a_id) && records.iter().any(|r| r.claim.id == c.claim_b_id)
+            })
             .collect();
 
         let uncovered = review::uncovered_questions(
             &state.research_questions.iter().map(|q| (q.id, q.question.clone())).collect::<Vec<_>>(),
             records.iter().map(|r| (r.question_id, r.claim.status)),
         );
-        let mut gaps: Vec<String> = uncovered.iter().map(|(_, q)| format!("No verified evidence found for: {q}")).collect();
+        let mut gaps: Vec<String> =
+            uncovered.iter().map(|(_, q)| format!("No verified evidence found for: {q}")).collect();
         let failed_tasks = state.tasks.iter().filter(|t| t.status == TaskStatus::Failed).count();
         if failed_tasks > 0 {
             gaps.push(format!("{failed_tasks} research task(s) failed, so their questions may be under-covered"));
@@ -573,7 +677,14 @@ impl Orchestrator {
             gaps.push(format!("{excluded} extracted claim(s) were excluded because they could not be verified"));
         }
 
-        self.ev(id, "synthesizer", "synthesis_started", format!("Synthesizing report from {} verified claim(s)", records.len()), json!({"claims": records.len(), "contradictions": contradictions.len()})).await;
+        self.ev(
+            id,
+            "synthesizer",
+            "synthesis_started",
+            format!("Synthesizing report from {} verified claim(s)", records.len()),
+            json!({"claims": records.len(), "contradictions": contradictions.len()}),
+        )
+        .await;
         let content = self
             .synthesizer
             .execute(SynthesisInput {
@@ -596,7 +707,12 @@ impl Orchestrator {
                     .collect(),
                 contradictions: contradictions
                     .iter()
-                    .map(|c| SynthContradiction { claim_a: c.claim_a_id, claim_b: c.claim_b_id, kind: c.kind, explanation: c.explanation.clone() })
+                    .map(|c| SynthContradiction {
+                        claim_a: c.claim_a_id,
+                        claim_b: c.claim_b_id,
+                        kind: c.kind,
+                        explanation: c.explanation.clone(),
+                    })
                     .collect(),
                 gaps,
                 reviewer_feedback: reviewer_feedback.to_vec(),
@@ -606,9 +722,19 @@ impl Orchestrator {
 
         let report = self.store_report(id, state.iteration as i32, content, &records, false).await?;
         state.draft_report_id = Some(report.id);
-        state.verified_claims = records.iter().map(|r| VerifiedClaim { id: r.claim.id, support_level: r.claim.status, confidence: r.claim.confidence }).collect();
+        state.verified_claims = records
+            .iter()
+            .map(|r| VerifiedClaim { id: r.claim.id, support_level: r.claim.status, confidence: r.claim.confidence })
+            .collect();
         state.contradiction_ids = contradictions.iter().map(|c| c.id).collect();
-        self.ev(id, "synthesizer", "synthesis_completed", format!("Draft report written ({} citations)", report.citations.len()), json!({"report_id": report.id, "citations": report.citations.len()})).await;
+        self.ev(
+            id,
+            "synthesizer",
+            "synthesis_completed",
+            format!("Draft report written ({} citations)", report.citations.len()),
+            json!({"report_id": report.id, "citations": report.citations.len()}),
+        )
+        .await;
         Ok((report, records))
     }
 
@@ -621,10 +747,21 @@ impl Orchestrator {
         is_final: bool,
     ) -> Result<Report, OrchestratorError> {
         // Citation numbers and URLs come only from the claim -> source mapping.
-        let mut index = CitationIndex::new(records.iter().map(|r| (r.claim.id, r.source.id, r.source.url.clone(), r.source.title.clone())));
+        let mut index = CitationIndex::new(
+            records.iter().map(|r| (r.claim.id, r.source.id, r.source.url.clone(), r.source.title.clone())),
+        );
         let query = self.repo.get_run(run_id).await?.map(|r| r.query).unwrap_or_default();
         let (markdown, citations) = render_markdown(&query, &content, &mut index);
-        let report = Report { id: Uuid::new_v4(), research_run_id: run_id, iteration, is_final, content, markdown, citations, created_at: Utc::now() };
+        let report = Report {
+            id: Uuid::new_v4(),
+            research_run_id: run_id,
+            iteration,
+            is_final,
+            content,
+            markdown,
+            citations,
+            created_at: Utc::now(),
+        };
         self.repo.insert_report(&report).await?;
         Ok(report)
     }
@@ -636,7 +773,8 @@ impl Orchestrator {
         records: &[ClaimRecord],
     ) -> Result<(Critique, bool), OrchestratorError> {
         let id = state.research_id;
-        self.ev(id, "critic", "critique_started", "Critiquing draft report".into(), json!({"report_id": report.id})).await;
+        self.ev(id, "critic", "critique_started", "Critiquing draft report".into(), json!({"report_id": report.id}))
+            .await;
 
         let contradictions = self.repo.list_contradictions(id).await?;
         let support: HashMap<Uuid, SupportLevel> = records.iter().map(|r| (r.claim.id, r.claim.status)).collect();
@@ -669,7 +807,15 @@ impl Orchestrator {
             Ok(d) => (d, true),
             Err(e) => {
                 tracing::warn!(error = %e, "critic failed; finishing with explicit caveat");
-                (CritiqueDraft { quality: 0.0, needs_more_research: false, issues: vec![], required_research: vec![] }, false)
+                (
+                    CritiqueDraft {
+                        quality: 0.0,
+                        needs_more_research: false,
+                        issues: vec![],
+                        required_research: vec![],
+                    },
+                    false,
+                )
             }
         };
 
@@ -717,7 +863,9 @@ impl Orchestrator {
             // Outstanding problems are stated in the report, never hidden.
             let mut content = report.content.clone();
             if !critic_available {
-                content.limitations.push("Automated critique of this report was unavailable; it has not been independently reviewed.".into());
+                content.limitations.push(
+                    "Automated critique of this report was unavailable; it has not been independently reviewed.".into(),
+                );
             }
             for i in critique.issues.iter().filter(|i| i.severity != Severity::Low) {
                 content.limitations.push(format!("Reviewer-noted weakness ({}): {}", i.kind, i.description));
@@ -801,4 +949,3 @@ mod tests {
         assert!(t.dependencies.is_empty());
     }
 }
-

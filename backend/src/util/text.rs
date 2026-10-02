@@ -13,10 +13,7 @@ pub fn truncate_chars(s: &str, max_chars: usize) -> &str {
 
 /// Lowercases and collapses all whitespace runs into single spaces.
 pub fn normalize_ws(s: &str) -> String {
-    s.split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .to_lowercase()
+    s.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
 }
 
 /// Whether `excerpt` appears verbatim (modulo case and whitespace) in `content`.
@@ -74,13 +71,14 @@ pub fn context_around(content: &str, excerpt: &str, radius: usize) -> String {
     let (lc, le) = (content.to_lowercase(), excerpt.trim().to_lowercase());
     // Lowercasing can change byte lengths for some scripts; only trust offsets
     // when they line up with the original string.
-    if lc.len() == content.len() && !le.is_empty() {
-        if let Some(pos) = lc.find(&le) {
-            let start = (0..=pos.saturating_sub(radius)).rev().find(|i| content.is_char_boundary(*i)).unwrap_or(0);
-            let want_end = (pos + le.len() + radius).min(content.len());
-            let end = (want_end..=content.len()).find(|i| content.is_char_boundary(*i)).unwrap_or(content.len());
-            return content[start..end].to_string();
-        }
+    if lc.len() == content.len()
+        && !le.is_empty()
+        && let Some(pos) = lc.find(&le)
+    {
+        let start = (0..=pos.saturating_sub(radius)).rev().find(|i| content.is_char_boundary(*i)).unwrap_or(0);
+        let want_end = (pos + le.len() + radius).min(content.len());
+        let end = (want_end..=content.len()).find(|i| content.is_char_boundary(*i)).unwrap_or(content.len());
+        return content[start..end].to_string();
     }
     excerpt.trim().to_string()
 }
@@ -106,10 +104,7 @@ mod tests {
         assert_eq!(a, "https://example.com/post?id=7");
         // scheme differs so these are intentionally distinct
         assert_eq!(b, "http://example.com/post?id=7");
-        assert_eq!(
-            normalize_url("https://example.com/a/").unwrap(),
-            normalize_url("https://EXAMPLE.com/a").unwrap()
-        );
+        assert_eq!(normalize_url("https://example.com/a/").unwrap(), normalize_url("https://EXAMPLE.com/a").unwrap());
         assert!(normalize_url("ftp://example.com").is_none());
         assert!(normalize_url("not a url").is_none());
     }

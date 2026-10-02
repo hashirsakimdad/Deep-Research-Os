@@ -12,11 +12,7 @@ pub struct RetryPolicy {
 
 impl RetryPolicy {
     pub const fn new(max_attempts: u32, initial_delay: Duration, max_delay: Duration) -> Self {
-        Self {
-            max_attempts,
-            initial_delay,
-            max_delay,
-        }
+        Self { max_attempts, initial_delay, max_delay }
     }
 
     /// Delay applied before attempt `attempt` (1-based; attempt 1 has no delay).
@@ -25,9 +21,7 @@ impl RetryPolicy {
             return Duration::ZERO;
         }
         let factor = 2u32.saturating_pow(attempt - 2);
-        self.initial_delay
-            .saturating_mul(factor)
-            .min(self.max_delay)
+        self.initial_delay.saturating_mul(factor).min(self.max_delay)
     }
 }
 
@@ -39,11 +33,7 @@ impl Default for RetryPolicy {
 
 /// Runs `op` until it succeeds, fails with a non-retryable error, or the
 /// attempt budget is exhausted. The last error is returned.
-pub async fn retry<T, E, Fut, Op, Pred>(
-    policy: RetryPolicy,
-    is_retryable: Pred,
-    mut op: Op,
-) -> Result<T, E>
+pub async fn retry<T, E, Fut, Op, Pred>(policy: RetryPolicy, is_retryable: Pred, mut op: Op) -> Result<T, E>
 where
     Op: FnMut(u32) -> Fut,
     Fut: Future<Output = Result<T, E>>,
@@ -67,8 +57,7 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU32, Ordering};
 
-    const FAST: RetryPolicy =
-        RetryPolicy::new(3, Duration::from_millis(1), Duration::from_millis(4));
+    const FAST: RetryPolicy = RetryPolicy::new(3, Duration::from_millis(1), Duration::from_millis(4));
 
     #[test]
     fn backoff_doubles_and_caps() {
@@ -83,10 +72,14 @@ mod tests {
     #[tokio::test]
     async fn retries_until_success() {
         let calls = AtomicU32::new(0);
-        let out: Result<u32, &str> = retry(FAST, |_| true, |_| async {
-            let n = calls.fetch_add(1, Ordering::SeqCst) + 1;
-            if n < 3 { Err("transient") } else { Ok(n) }
-        })
+        let out: Result<u32, &str> = retry(
+            FAST,
+            |_| true,
+            |_| async {
+                let n = calls.fetch_add(1, Ordering::SeqCst) + 1;
+                if n < 3 { Err("transient") } else { Ok(n) }
+            },
+        )
         .await;
         assert_eq!(out, Ok(3));
     }
@@ -94,10 +87,14 @@ mod tests {
     #[tokio::test]
     async fn stops_at_attempt_budget() {
         let calls = AtomicU32::new(0);
-        let out: Result<(), &str> = retry(FAST, |_| true, |_| async {
-            calls.fetch_add(1, Ordering::SeqCst);
-            Err("always")
-        })
+        let out: Result<(), &str> = retry(
+            FAST,
+            |_| true,
+            |_| async {
+                calls.fetch_add(1, Ordering::SeqCst);
+                Err("always")
+            },
+        )
         .await;
         assert_eq!(out, Err("always"));
         assert_eq!(calls.load(Ordering::SeqCst), 3);
@@ -106,10 +103,14 @@ mod tests {
     #[tokio::test]
     async fn does_not_retry_permanent_errors() {
         let calls = AtomicU32::new(0);
-        let out: Result<(), &str> = retry(FAST, |e: &&str| *e != "permanent", |_| async {
-            calls.fetch_add(1, Ordering::SeqCst);
-            Err("permanent")
-        })
+        let out: Result<(), &str> = retry(
+            FAST,
+            |e: &&str| *e != "permanent",
+            |_| async {
+                calls.fetch_add(1, Ordering::SeqCst);
+                Err("permanent")
+            },
+        )
         .await;
         assert_eq!(out, Err("permanent"));
         assert_eq!(calls.load(Ordering::SeqCst), 1);

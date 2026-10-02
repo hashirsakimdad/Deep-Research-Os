@@ -103,10 +103,7 @@ impl Agent for PlannerAgent {
 
     async fn execute(&self, input: PlannerInput) -> Result<ResearchPlan, AgentError> {
         if input.query.trim().len() < 8 {
-            return Err(AgentError::InvalidInput {
-                agent: NAME,
-                reason: "query is too short to plan".into(),
-            });
+            return Err(AgentError::InvalidInput { agent: NAME, reason: "query is too short to plan".into() });
         }
         let max = input.max_questions.max(3);
         let request = LlmRequest::json(
@@ -128,7 +125,11 @@ mod tests {
         {"question":"What are the risks?","objective":"risks","priority":"medium","depends_on":[0]}]}"#;
 
     fn input() -> PlannerInput {
-        PlannerInput { research_id: Uuid::new_v4(), query: "How will AI coding agents change software?".into(), max_questions: 6 }
+        PlannerInput {
+            research_id: Uuid::new_v4(),
+            query: "How will AI coding agents change software?".into(),
+            max_questions: 6,
+        }
     }
 
     #[tokio::test]
@@ -161,7 +162,13 @@ mod tests {
 
     #[test]
     fn plan_size_is_bounded() {
-        let q = |_| PlannedQuestion { question: "q".into(), objective: "o".into(), priority: Priority::Low, required_evidence: vec![], depends_on: vec![] };
+        let q = |_| PlannedQuestion {
+            question: "q".into(),
+            objective: "o".into(),
+            priority: Priority::Low,
+            required_evidence: vec![],
+            depends_on: vec![],
+        };
         let plan = ResearchPlan { research_depth: String::new(), questions: (0..5).map(q).collect() };
         assert!(plan.validate(4).is_err());
         assert!(plan.validate(5).is_ok());

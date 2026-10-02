@@ -93,13 +93,14 @@ impl VerifierAgent {
         let payload = serde_json::to_string_pretty(batch).unwrap_or_default();
         let ids: Vec<Uuid> = batch.iter().map(|i| i.claim_id).collect();
         let request = LlmRequest::json(NAME, SYSTEM, format!("Verify these claims:\n{payload}"));
-        let result: Result<RawVerdicts, AgentError> = generate_structured(self.llm.as_ref(), NAME, request, |r: &RawVerdicts| {
-            match r.verdicts.iter().find(|v| !ids.contains(&v.claim_id)) {
-                Some(v) => Err(format!("claim_id {} was not in the request", v.claim_id)),
-                None => Ok(()),
-            }
-        })
-        .await;
+        let result: Result<RawVerdicts, AgentError> =
+            generate_structured(self.llm.as_ref(), NAME, request, |r: &RawVerdicts| {
+                match r.verdicts.iter().find(|v| !ids.contains(&v.claim_id)) {
+                    Some(v) => Err(format!("claim_id {} was not in the request", v.claim_id)),
+                    None => Ok(()),
+                }
+            })
+            .await;
 
         let mut by_id: HashMap<Uuid, RawVerdict> = HashMap::new();
         match result {
@@ -173,7 +174,9 @@ mod tests {
     fn verdicts(items: &[(&VerifyItem, &str, f32)]) -> String {
         let v: Vec<String> = items
             .iter()
-            .map(|(i, level, c)| format!(r#"{{"claim_id":"{}","support_level":"{level}","confidence":{c},"reasoning":"r"}}"#, i.claim_id))
+            .map(|(i, level, c)| {
+                format!(r#"{{"claim_id":"{}","support_level":"{level}","confidence":{c},"reasoning":"r"}}"#, i.claim_id)
+            })
             .collect();
         format!(r#"{{"verdicts":[{}]}}"#, v.join(","))
     }
@@ -181,7 +184,8 @@ mod tests {
     #[tokio::test]
     async fn applies_deterministic_confidence_caps() {
         let (a, b) = (item(SourceNature::Primary), item(SourceNature::Marketing));
-        let llm = Arc::new(ScriptedLlm::ok(&[&verdicts(&[(&a, "PARTIALLY_SUPPORTED", 0.95), (&b, "SUPPORTED", 0.95)])]));
+        let llm =
+            Arc::new(ScriptedLlm::ok(&[&verdicts(&[(&a, "PARTIALLY_SUPPORTED", 0.95), (&b, "SUPPORTED", 0.95)])]));
         let out = VerifierAgent::new(llm, Limits::default())
             .execute(VerifyInput { research_id: Uuid::new_v4(), items: vec![a.clone(), b.clone()] })
             .await
@@ -218,8 +222,7 @@ mod tests {
 
     #[tokio::test]
     async fn batches_by_configured_size() {
-        let mut limits = Limits::default();
-        limits.verify_batch_size = 2;
+        let limits = Limits { verify_batch_size: 2, ..Limits::default() };
         let items: Vec<_> = (0..3).map(|_| item(SourceNature::Primary)).collect();
         let r1 = verdicts(&[(&items[0], "SUPPORTED", 0.8), (&items[1], "SUPPORTED", 0.8)]);
         let r2 = verdicts(&[(&items[2], "UNSUPPORTED", 0.1)]);

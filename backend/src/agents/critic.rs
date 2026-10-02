@@ -95,7 +95,11 @@ impl Agent for CriticAgent {
             input.questions.iter().enumerate().map(|(i, q)| format!("{}. {q}", i + 1)).collect::<Vec<_>>().join("\n"),
             serde_json::to_string_pretty(&input.report).unwrap_or_default(),
             serde_json::to_string_pretty(&input.claims).unwrap_or_default(),
-            if input.contradiction_notes.is_empty() { "(none)".to_string() } else { input.contradiction_notes.join("\n") },
+            if input.contradiction_notes.is_empty() {
+                "(none)".to_string()
+            } else {
+                input.contradiction_notes.join("\n")
+            },
             input.unverified_or_rejected_count,
         );
         generate_structured(self.llm.as_ref(), NAME, LlmRequest::json(NAME, SYSTEM, user), |c: &CritiqueDraft| {
@@ -114,7 +118,10 @@ impl Agent for CriticAgent {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{llm::structured::testing::ScriptedLlm, models::{CitedStatement, IssueType, Severity}};
+    use crate::{
+        llm::structured::testing::ScriptedLlm,
+        models::{CitedStatement, IssueType, Severity},
+    };
 
     fn input(claim_id: Uuid) -> CritiqueInput {
         CritiqueInput {
@@ -131,7 +138,13 @@ mod tests {
                 open_questions: vec![],
                 conclusion: "c".into(),
             },
-            claims: vec![CritiqueClaim { id: claim_id, text: "t".into(), support_level: SupportLevel::Supported, support_note: "n".into(), source_nature: "primary".into() }],
+            claims: vec![CritiqueClaim {
+                id: claim_id,
+                text: "t".into(),
+                support_level: SupportLevel::Supported,
+                support_note: "n".into(),
+                source_nature: "primary".into(),
+            }],
             contradiction_notes: vec![],
             unverified_or_rejected_count: 0,
         }
@@ -157,7 +170,10 @@ mod tests {
     async fn rejects_out_of_range_quality_and_unknown_claims() {
         let id = Uuid::new_v4();
         let bad_quality = r#"{"quality":7}"#.to_string();
-        let bad_claim = format!(r#"{{"quality":0.5,"issues":[{{"type":"OVERCONFIDENT","claim_id":"{}","description":"d","severity":"low"}}]}}"#, Uuid::new_v4());
+        let bad_claim = format!(
+            r#"{{"quality":0.5,"issues":[{{"type":"OVERCONFIDENT","claim_id":"{}","description":"d","severity":"low"}}]}}"#,
+            Uuid::new_v4()
+        );
         let ok = r#"{"quality":0.9}"#.to_string();
         let llm = Arc::new(ScriptedLlm::ok(&[&bad_quality, &bad_claim, &ok]));
         let out = CriticAgent::new(llm.clone()).execute(input(id)).await.unwrap();

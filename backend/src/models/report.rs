@@ -72,13 +72,7 @@ pub struct CitationIndex {
 impl CitationIndex {
     /// `claims`: (claim id, source id, source url, source title).
     pub fn new(claims: impl IntoIterator<Item = (Uuid, Uuid, String, String)>) -> Self {
-        Self {
-            claim_source: claims
-                .into_iter()
-                .map(|(c, s, u, t)| (c, (s, u, t)))
-                .collect(),
-            ..Self::default()
-        }
+        Self { claim_source: claims.into_iter().map(|(c, s, u, t)| (c, (s, u, t))).collect(), ..Self::default() }
     }
 
     pub fn knows_claim(&self, claim_id: &Uuid) -> bool {
@@ -101,12 +95,7 @@ impl CitationIndex {
             .iter()
             .filter_map(|sid| {
                 let (_, url, title) = self.claim_source.values().find(|(s, _, _)| s == sid)?;
-                Some(Citation {
-                    number: self.numbers[sid],
-                    source_id: *sid,
-                    url: url.clone(),
-                    title: title.clone(),
-                })
+                Some(Citation { number: self.numbers[sid], source_id: *sid, url: url.clone(), title: title.clone() })
             })
             .collect()
     }
@@ -117,11 +106,7 @@ fn render_statement(s: &CitedStatement, idx: &mut CitationIndex) -> String {
     numbers.sort_unstable();
     numbers.dedup();
     let marks: String = numbers.iter().map(|n| format!("[{n}]")).collect();
-    if marks.is_empty() {
-        s.text.trim().to_string()
-    } else {
-        format!("{} {}", s.text.trim(), marks)
-    }
+    if marks.is_empty() { s.text.trim().to_string() } else { format!("{} {}", s.text.trim(), marks) }
 }
 
 /// Renders markdown. Citation numbers and the bibliography come exclusively

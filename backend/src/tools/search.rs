@@ -55,10 +55,7 @@ impl TavilySearch {
         timeout: Duration,
         max_results: usize,
     ) -> Result<Self, SearchError> {
-        let client = Client::builder()
-            .timeout(timeout)
-            .build()
-            .map_err(|e| SearchError::Network(e.to_string()))?;
+        let client = Client::builder().timeout(timeout).build().map_err(|e| SearchError::Network(e.to_string()))?;
         Ok(Self {
             client,
             api_key,
@@ -81,13 +78,7 @@ impl TavilySearch {
             }))
             .send()
             .await
-            .map_err(|e| {
-                if e.is_timeout() {
-                    SearchError::Timeout
-                } else {
-                    SearchError::Network(e.to_string())
-                }
-            })?;
+            .map_err(|e| if e.is_timeout() { SearchError::Timeout } else { SearchError::Network(e.to_string()) })?;
         match resp.status() {
             StatusCode::TOO_MANY_REQUESTS => return Err(SearchError::RateLimited),
             s if s.is_server_error() => {
@@ -98,10 +89,8 @@ impl TavilySearch {
             }
             _ => {}
         }
-        let parsed: TavilyResponse = resp
-            .json()
-            .await
-            .map_err(|e| SearchError::Provider(format!("unreadable response: {e}")))?;
+        let parsed: TavilyResponse =
+            resp.json().await.map_err(|e| SearchError::Provider(format!("unreadable response: {e}")))?;
         Ok(parsed
             .results
             .into_iter()
@@ -198,11 +187,7 @@ mod tests {
     #[tokio::test]
     async fn retries_transient_failures_only() {
         let server = MockServer::start().await;
-        Mock::given(method("POST"))
-            .respond_with(ResponseTemplate::new(429))
-            .up_to_n_times(1)
-            .mount(&server)
-            .await;
+        Mock::given(method("POST")).respond_with(ResponseTemplate::new(429)).up_to_n_times(1).mount(&server).await;
         Mock::given(method("POST"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({"results": []})))
             .mount(&server)
@@ -210,11 +195,7 @@ mod tests {
         assert!(client(&server.uri()).search("q").await.unwrap().is_empty());
 
         let server = MockServer::start().await;
-        Mock::given(method("POST"))
-            .respond_with(ResponseTemplate::new(401))
-            .expect(1)
-            .mount(&server)
-            .await;
+        Mock::given(method("POST")).respond_with(ResponseTemplate::new(401)).expect(1).mount(&server).await;
         assert!(matches!(client(&server.uri()).search("q").await, Err(SearchError::Provider(_))));
     }
 }

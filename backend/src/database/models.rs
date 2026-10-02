@@ -19,10 +19,7 @@ pub struct ClaimRecord {
 impl ClaimRecord {
     /// The verifier's explanation, if it has run.
     pub fn support_note(&self) -> String {
-        self.evidence
-            .iter()
-            .find_map(|e| e.reasoning.clone())
-            .unwrap_or_default()
+        self.evidence.iter().find_map(|e| e.reasoning.clone()).unwrap_or_default()
     }
 
     pub fn excerpt(&self) -> String {

@@ -74,11 +74,9 @@ impl Config {
     pub fn from_env() -> Result<Self, ConfigError> {
         let mut limits = Limits::default();
         limits.max_iterations = parse_or("MAX_ITERATIONS", limits.max_iterations)?;
-        limits.max_tasks_per_iteration =
-            parse_or("MAX_TASKS_PER_ITERATION", limits.max_tasks_per_iteration)?;
+        limits.max_tasks_per_iteration = parse_or("MAX_TASKS_PER_ITERATION", limits.max_tasks_per_iteration)?;
         limits.max_concurrent_tasks = parse_or("MAX_CONCURRENT_TASKS", limits.max_concurrent_tasks)?;
-        limits.max_concurrent_llm_calls =
-            parse_or("MAX_CONCURRENT_LLM_CALLS", limits.max_concurrent_llm_calls)?;
+        limits.max_concurrent_llm_calls = parse_or("MAX_CONCURRENT_LLM_CALLS", limits.max_concurrent_llm_calls)?;
         limits.max_concurrent_runs = parse_or("MAX_CONCURRENT_RUNS", limits.max_concurrent_runs)?;
         limits.sources_per_task = parse_or("SOURCES_PER_TASK", limits.sources_per_task)?;
         limits.task_timeout = Duration::from_secs(parse_or("TASK_TIMEOUT_SECS", 240u64)?);
@@ -90,8 +88,7 @@ impl Config {
             database_url: required("DATABASE_URL")?,
             grok_api_key: required("GROK_API_KEY")?,
             grok_model: env::var("GROK_MODEL").unwrap_or_else(|_| "grok-4".into()),
-            grok_base_url: env::var("GROK_BASE_URL")
-                .unwrap_or_else(|_| "https://api.x.ai/v1".into()),
+            grok_base_url: env::var("GROK_BASE_URL").unwrap_or_else(|_| "https://api.x.ai/v1".into()),
             search_api_key: required("SEARCH_API_KEY")?,
             cors_origin: env::var("CORS_ORIGIN").unwrap_or_else(|_| "http://localhost:3000".into()),
             limits,
@@ -108,10 +105,7 @@ fn required(key: &'static str) -> Result<String, ConfigError> {
 
 fn parse_or<T: FromStr>(key: &'static str, default: T) -> Result<T, ConfigError> {
     match env::var(key) {
-        Ok(v) if !v.trim().is_empty() => v
-            .trim()
-            .parse()
-            .map_err(|_| ConfigError::Invalid(key, v)),
+        Ok(v) if !v.trim().is_empty() => v.trim().parse().map_err(|_| ConfigError::Invalid(key, v)),
         _ => Ok(default),
     }
 }

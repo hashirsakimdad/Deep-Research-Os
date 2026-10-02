@@ -71,7 +71,10 @@ async fn require_run(state: &AppState, id: Uuid) -> Result<ResearchRun, ApiError
     state.repo.get_run(id).await?.ok_or(ApiError::NotFound)
 }
 
-pub async fn get_research(State(state): State<AppState>, Path(id): Path<Uuid>) -> Result<Json<ResearchOverview>, ApiError> {
+pub async fn get_research(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<ResearchOverview>, ApiError> {
     let run = require_run(&state, id).await?;
     Ok(Json(ResearchOverview {
         questions: state.repo.list_questions(id).await?,
@@ -97,23 +100,35 @@ pub async fn get_events(
     Ok(Json(state.repo.events_after(id, q.after.unwrap_or(0), limit).await?))
 }
 
-pub async fn get_sources(State(state): State<AppState>, Path(id): Path<Uuid>) -> Result<Json<Vec<SourceReference>>, ApiError> {
+pub async fn get_sources(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<SourceReference>>, ApiError> {
     require_run(&state, id).await?;
     Ok(Json(state.repo.list_source_refs(id).await?))
 }
 
 /// Claims with their evidence and source: the claim -> evidence -> source -> URL trace.
-pub async fn get_claims(State(state): State<AppState>, Path(id): Path<Uuid>) -> Result<Json<Vec<ClaimRecord>>, ApiError> {
+pub async fn get_claims(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<ClaimRecord>>, ApiError> {
     require_run(&state, id).await?;
     Ok(Json(state.repo.claim_records(id, None, None).await?))
 }
 
-pub async fn get_contradictions(State(state): State<AppState>, Path(id): Path<Uuid>) -> Result<Json<Vec<Contradiction>>, ApiError> {
+pub async fn get_contradictions(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<Contradiction>>, ApiError> {
     require_run(&state, id).await?;
     Ok(Json(state.repo.list_contradictions(id).await?))
 }
 
-pub async fn get_critiques(State(state): State<AppState>, Path(id): Path<Uuid>) -> Result<Json<Vec<Critique>>, ApiError> {
+pub async fn get_critiques(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<Critique>>, ApiError> {
     require_run(&state, id).await?;
     Ok(Json(state.repo.list_critiques(id).await?))
 }

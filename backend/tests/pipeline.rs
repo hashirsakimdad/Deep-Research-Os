@@ -33,14 +33,17 @@ fn uuids_in(text: &str) -> Vec<Uuid> {
     let mut out = Vec::new();
     let mut i = 0;
     while i + 36 <= b.len() {
-        if b[i + 8] == b'-' && b[i + 13] == b'-' && b[i + 18] == b'-' && b[i + 23] == b'-' {
-            if let Ok(u) = Uuid::parse_str(&text[i..i + 36]) {
-                if !out.contains(&u) {
-                    out.push(u);
-                }
-                i += 36;
-                continue;
+        if b[i + 8] == b'-'
+            && b[i + 13] == b'-'
+            && b[i + 18] == b'-'
+            && b[i + 23] == b'-'
+            && let Some(Ok(u)) = text.get(i..i + 36).map(Uuid::parse_str)
+        {
+            if !out.contains(&u) {
+                out.push(u);
             }
+            i += 36;
+            continue;
         }
         i += 1;
     }
@@ -64,7 +67,12 @@ struct ScriptedWorld {
 
 impl ScriptedWorld {
     fn new(behavior: Behavior) -> Arc<Self> {
-        Arc::new(Self { behavior, critic_calls: AtomicUsize::new(0), llm_calls: AtomicUsize::new(0), synth_feedback: Mutex::new(vec![]) })
+        Arc::new(Self {
+            behavior,
+            critic_calls: AtomicUsize::new(0),
+            llm_calls: AtomicUsize::new(0),
+            synth_feedback: Mutex::new(vec![]),
+        })
     }
 }
 
@@ -180,8 +188,7 @@ async fn harness(world: Arc<ScriptedWorld>) -> Option<(Repository, Orchestrator)
     let pool = database::connect(&url).await.expect("database connection");
     let repo = Repository::new(pool);
     let events = Arc::new(EventBus::new(repo.clone()));
-    let mut limits = Limits::default();
-    limits.sources_per_task = 2;
+    let limits = Limits { sources_per_task: 2, ..Limits::default() };
     let orch = Orchestrator::new(
         repo.clone(),
         events,
@@ -241,9 +248,20 @@ async fn full_lifecycle_produces_a_traceable_cited_report() {
     // events describe real operations in order
     let types = event_types(&repo, run.id).await;
     for expected in [
-        "research_started", "planning_started", "planning_completed", "task_created", "search_started",
-        "source_found", "claim_extracted", "verification_started", "verification_completed",
-        "synthesis_started", "synthesis_completed", "critique_started", "critique_completed", "research_completed",
+        "research_started",
+        "planning_started",
+        "planning_completed",
+        "task_created",
+        "search_started",
+        "source_found",
+        "claim_extracted",
+        "verification_started",
+        "verification_completed",
+        "synthesis_started",
+        "synthesis_completed",
+        "critique_started",
+        "critique_completed",
+        "research_completed",
     ] {
         assert!(types.iter().any(|t| t == expected), "missing event {expected}; got {types:?}");
     }
@@ -272,7 +290,10 @@ async fn critic_feedback_triggers_one_more_iteration_and_stops_at_the_limit() {
     assert!(tasks.iter().any(|t| t.iteration == 2), "follow-up task created");
     assert!(tasks.iter().all(|t| t.iteration <= 2));
     assert_eq!(world.critic_calls.load(Ordering::SeqCst), 2, "critiqued exactly once per iteration");
-    assert!(world.synth_feedback.lock().unwrap().iter().any(|f| f.contains("Only one study cited")), "critique fed into the next draft");
+    assert!(
+        world.synth_feedback.lock().unwrap().iter().any(|f| f.contains("Only one study cited")),
+        "critique fed into the next draft"
+    );
 
     let types = event_types(&repo, run.id).await;
     assert!(types.contains(&"additional_research_required".to_string()));
@@ -346,22 +367,50 @@ async fn repository_deduplicates_sources_claims_and_contradictions() {
     assert_eq!(repo.list_source_refs(run.id).await.unwrap().len(), 1);
 
     // tasks are needed for claims
-    let q = ResearchQuestion { id: Uuid::new_v4(), research_run_id: run.id, question: "q".into(), objective: "o".into(), priority: Priority::Low, position: 0 };
-    repo.insert_questions(&[q.clone()]).await.unwrap();
+    let q = ResearchQuestion {
+        id: Uuid::new_v4(),
+        research_run_id: run.id,
+        question: "q".into(),
+        objective: "o".into(),
+        priority: Priority::Low,
+        position: 0,
+    };
+    repo.insert_questions(std::slice::from_ref(&q)).await.unwrap();
     let task = ResearchTask {
-        id: Uuid::new_v4(), research_run_id: run.id, question_id: Some(q.id), question: "q".into(), objective: "o".into(),
-        priority: Priority::Low, status: TaskStatus::Pending, assigned_agent: "researcher".into(), required_evidence: vec![],
-        dependencies: vec![], iteration: 1, error: None, created_at: chrono::Utc::now(), completed_at: None,
+        id: Uuid::new_v4(),
+        research_run_id: run.id,
+        question_id: Some(q.id),
+        question: "q".into(),
+        objective: "o".into(),
+        priority: Priority::Low,
+        status: TaskStatus::Pending,
+        assigned_agent: "researcher".into(),
+        required_evidence: vec![],
+        dependencies: vec![],
+        iteration: 1,
+        error: None,
+        created_at: chrono::Utc::now(),
+        completed_at: None,
     };
     repo.insert_task(&task).await.unwrap();
 
     let mk_claim = |text: &str| Claim {
-        id: Uuid::new_v4(), research_run_id: run.id, research_task_id: task.id, text: text.into(), source_id: first,
-        confidence: 0.8, status: SupportLevel::Unverified, iteration: 1, created_at: chrono::Utc::now(),
+        id: Uuid::new_v4(),
+        research_run_id: run.id,
+        research_task_id: task.id,
+        text: text.into(),
+        source_id: first,
+        confidence: 0.8,
+        status: SupportLevel::Unverified,
+        iteration: 1,
+        created_at: chrono::Utc::now(),
     };
     let c1 = mk_claim("Agents are faster.");
     assert!(repo.insert_claim_with_evidence(&c1, "agents are faster").await.unwrap().is_some());
-    assert!(repo.insert_claim_with_evidence(&mk_claim("agents  ARE faster."), "agents are faster").await.unwrap().is_none(), "duplicate claim text from the same source");
+    assert!(
+        repo.insert_claim_with_evidence(&mk_claim("agents  ARE faster."), "agents are faster").await.unwrap().is_none(),
+        "duplicate claim text from the same source"
+    );
     let c2 = mk_claim("Agents are slower at debugging.");
     repo.insert_claim_with_evidence(&c2, "slower debugging").await.unwrap();
 
@@ -371,10 +420,24 @@ async fn repository_deduplicates_sources_claims_and_contradictions() {
     assert_eq!(records[0].support_note(), "narrow scope");
     assert_eq!(records[0].source.url, "https://www.example.com/a/?utm_source=x");
 
-    let contradiction = |a, b| Contradiction { id: Uuid::new_v4(), research_run_id: run.id, claim_a_id: a, claim_b_id: b, kind: ContradictionKind::MetricDifference, explanation: "e".into(), created_at: chrono::Utc::now() };
+    let contradiction = |a, b| Contradiction {
+        id: Uuid::new_v4(),
+        research_run_id: run.id,
+        claim_a_id: a,
+        claim_b_id: b,
+        kind: ContradictionKind::MetricDifference,
+        explanation: "e".into(),
+        created_at: chrono::Utc::now(),
+    };
     assert!(repo.insert_contradiction(&contradiction(c1.id, c2.id)).await.unwrap());
-    assert!(!repo.insert_contradiction(&contradiction(c2.id, c1.id)).await.unwrap(), "pair order does not create duplicates");
+    assert!(
+        !repo.insert_contradiction(&contradiction(c2.id, c1.id)).await.unwrap(),
+        "pair order does not create duplicates"
+    );
 
     let stats = repo.run_stats(run.id).await.unwrap();
-    assert_eq!((stats.sources, stats.claims, stats.partially_supported, stats.unverified, stats.contradictions), (1, 2, 1, 1, 1));
+    assert_eq!(
+        (stats.sources, stats.claims, stats.partially_supported, stats.unverified, stats.contradictions),
+        (1, 2, 1, 1, 1)
+    );
 }

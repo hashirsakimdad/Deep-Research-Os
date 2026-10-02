@@ -5,9 +5,7 @@ use std::collections::{HashMap, HashSet};
 
 use uuid::Uuid;
 
-use crate::models::{
-    Contradiction, CritiqueIssue, IssueType, ReportContent, Severity, SupportLevel,
-};
+use crate::models::{Contradiction, CritiqueIssue, IssueType, ReportContent, Severity, SupportLevel};
 
 /// Reports scoring below this are never accepted without caveats.
 pub const MIN_ACCEPTABLE_QUALITY: f32 = 0.7;
@@ -106,11 +104,8 @@ pub fn deterministic_issues(
         }
     }
 
-    let discussed = &report
-        .contradictory_evidence
-        .iter()
-        .flat_map(|s| s.claim_ids.iter().copied())
-        .collect::<HashSet<_>>();
+    let discussed =
+        &report.contradictory_evidence.iter().flat_map(|s| s.claim_ids.iter().copied()).collect::<HashSet<_>>();
     for c in contradictions.iter().filter(|c| c.kind.is_genuine()) {
         if !discussed.contains(&c.claim_a_id) && !discussed.contains(&c.claim_b_id) {
             issues.push(CritiqueIssue {
@@ -129,11 +124,7 @@ pub fn uncovered_questions(
     questions: &[(Uuid, String)],
     claims: impl IntoIterator<Item = (Option<Uuid>, SupportLevel)>,
 ) -> Vec<(Uuid, String)> {
-    let covered: HashSet<Uuid> = claims
-        .into_iter()
-        .filter(|(_, s)| s.is_citable())
-        .filter_map(|(q, _)| q)
-        .collect();
+    let covered: HashSet<Uuid> = claims.into_iter().filter(|(_, s)| s.is_citable()).filter_map(|(q, _)| q).collect();
     questions.iter().filter(|(id, _)| !covered.contains(id)).cloned().collect()
 }
 
@@ -146,7 +137,11 @@ mod tests {
         CritiqueIssue { kind: IssueType::Overconfident, claim_id: None, description: "d".into(), severity: sev }
     }
 
-    fn base<'a>(issues: &'a [CritiqueIssue], required: &'a [String], uncovered: &'a [(Uuid, String)]) -> ReviewInput<'a> {
+    fn base<'a>(
+        issues: &'a [CritiqueIssue],
+        required: &'a [String],
+        uncovered: &'a [(Uuid, String)],
+    ) -> ReviewInput<'a> {
         ReviewInput {
             quality: 0.85,
             critic_wants_more: false,
@@ -235,10 +230,15 @@ mod tests {
         let (a, b) = (Uuid::new_v4(), Uuid::new_v4());
         let r = report(vec![CitedStatement { text: "bold claim".into(), claim_ids: vec![] }], vec![]);
         let c = Contradiction {
-            id: Uuid::new_v4(), research_run_id: Uuid::new_v4(), claim_a_id: a, claim_b_id: b,
-            kind: ContradictionKind::DirectContradiction, explanation: "x".into(), created_at: chrono::Utc::now(),
+            id: Uuid::new_v4(),
+            research_run_id: Uuid::new_v4(),
+            claim_a_id: a,
+            claim_b_id: b,
+            kind: ContradictionKind::DirectContradiction,
+            explanation: "x".into(),
+            created_at: chrono::Utc::now(),
         };
-        let issues = deterministic_issues(&r, &HashMap::new(), &[c.clone()]);
+        let issues = deterministic_issues(&r, &HashMap::new(), std::slice::from_ref(&c));
         assert!(issues.iter().any(|i| i.kind == IssueType::MissingCitation && i.severity == Severity::High));
         assert!(issues.iter().any(|i| i.kind == IssueType::IgnoredContradiction));
 
@@ -249,7 +249,7 @@ mod tests {
             vec![CitedStatement { text: "conflict".into(), claim_ids: vec![a, b] }],
         );
         let support = HashMap::from([(a, SupportLevel::Supported)]);
-        assert!(deterministic_issues(&ok, &support, &[c.clone()]).is_empty());
+        assert!(deterministic_issues(&ok, &support, std::slice::from_ref(&c)).is_empty());
         let mut metric = c;
         metric.kind = ContradictionKind::MetricDifference;
         assert!(deterministic_issues(&report(vec![], vec![]), &HashMap::new(), &[metric]).is_empty());

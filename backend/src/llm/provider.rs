@@ -88,11 +88,7 @@ impl LimitedProvider {
 #[async_trait]
 impl LlmProvider for LimitedProvider {
     async fn generate(&self, request: LlmRequest) -> Result<LlmResponse, LlmError> {
-        let _permit = self
-            .permits
-            .acquire()
-            .await
-            .map_err(|_| LlmError::Network("llm limiter closed".into()))?;
+        let _permit = self.permits.acquire().await.map_err(|_| LlmError::Network("llm limiter closed".into()))?;
         self.inner.generate(request).await
     }
 }

@@ -24,10 +24,7 @@ where
 {
     let mut last_error = String::new();
     for attempt in 0..=MAX_REPAIRS {
-        let response = llm
-            .generate(request.clone())
-            .await
-            .map_err(|source| AgentError::Llm { agent, source })?;
+        let response = llm.generate(request.clone()).await.map_err(|source| AgentError::Llm { agent, source })?;
 
         let problem = match parse::<T>(&response.content) {
             Ok(value) => match validate(&value) {
@@ -132,11 +129,17 @@ mod tests {
     #[tokio::test]
     async fn repairs_validation_failures() {
         let llm = ScriptedLlm::ok(&["{\"n\": 0}", "{\"n\": 3}"]);
-        let out: Out = generate_structured(&llm, "t", req(), |o: &Out| {
-            if o.n == 0 { Err("n must be positive".into()) } else { Ok(()) }
-        })
-        .await
-        .unwrap();
+        let out: Out =
+            generate_structured(
+                &llm,
+                "t",
+                req(),
+                |o: &Out| {
+                    if o.n == 0 { Err("n must be positive".into()) } else { Ok(()) }
+                },
+            )
+            .await
+            .unwrap();
         assert_eq!(out.n, 3);
     }
 
