@@ -22,7 +22,10 @@ pub enum LlmError {
     #[error("llm request timed out")]
     Timeout,
     #[error("llm rate limited")]
-    RateLimited,
+    RateLimited {
+        /// Delay requested by the server via `Retry-After`, if any.
+        retry_after: Option<std::time::Duration>,
+    },
     #[error("llm server error ({status}): {body}")]
     Server { status: u16, body: String },
     #[error("llm rejected request ({status}): {body}")]
@@ -36,7 +39,15 @@ pub enum LlmError {
 impl LlmError {
     /// Whether retrying the same request may succeed.
     pub fn is_retryable(&self) -> bool {
-        matches!(self, Self::Timeout | Self::RateLimited | Self::Server { .. } | Self::Network(_))
+        matches!(self, Self::Timeout | Self::RateLimited { .. } | Self::Server { .. } | Self::Network(_))
+    }
+
+    /// Server-requested wait before the next attempt.
+    pub fn retry_after(&self) -> Option<std::time::Duration> {
+        match self {
+            Self::RateLimited { retry_after } => *retry_after,
+            _ => None,
+        }
     }
 }
 

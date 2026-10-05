@@ -33,11 +33,28 @@ impl Default for RetryPolicy {
 
 /// Runs `op` until it succeeds, fails with a non-retryable error, or the
 /// attempt budget is exhausted. The last error is returned.
-pub async fn retry<T, E, Fut, Op, Pred>(policy: RetryPolicy, is_retryable: Pred, mut op: Op) -> Result<T, E>
+pub async fn retry<T, E, Fut, Op, Pred>(policy: RetryPolicy, is_retryable: Pred, op: Op) -> Result<T, E>
 where
     Op: FnMut(u32) -> Fut,
     Fut: Future<Output = Result<T, E>>,
     Pred: Fn(&E) -> bool,
+{
+    retry_hinted(policy, is_retryable, |_| None, op).await
+}
+
+/// Like [`retry`], but `hint` may supply a server-requested delay (e.g. `Retry-After`)
+/// that replaces the computed backoff for that attempt, capped at `MAX_HINTED_DELAY`.
+pub async fn retry_hinted<T, E, Fut, Op, Pred, Hint>(
+    policy: RetryPolicy,
+    is_retryable: Pred,
+    hint: Hint,
+    mut op: Op,
+) -> Result<T, E>
+where
+    Op: FnMut(u32) -> Fut,
+    Fut: Future<Output = Result<T, E>>,
+    Pred: Fn(&E) -> bool,
+    Hint: Fn(&E) -> Option<Duration>,
 {
     let mut attempt = 1;
     loop {
@@ -45,12 +62,19 @@ where
             Ok(v) => return Ok(v),
             Err(e) if attempt < policy.max_attempts && is_retryable(&e) => {
                 attempt += 1;
-                tokio::time::sleep(policy.delay_before(attempt)).await;
+                let delay = match hint(&e) {
+                    Some(requested) => requested.min(MAX_HINTED_DELAY),
+                    None => policy.delay_before(attempt),
+                };
+                tokio::time::sleep(delay).await;
             }
             Err(e) => return Err(e),
         }
     }
 }
+
+/// Upper bound on how long a server hint may make us wait between attempts.
+pub const MAX_HINTED_DELAY: Duration = Duration::from_secs(60);
 
 #[cfg(test)]
 mod tests {
@@ -67,6 +91,26 @@ mod tests {
         assert_eq!(p.delay_before(3), Duration::from_millis(200));
         assert_eq!(p.delay_before(4), Duration::from_millis(350));
         assert_eq!(p.delay_before(5), Duration::from_millis(350));
+    }
+
+    #[tokio::test]
+    async fn server_hint_replaces_backoff_and_is_capped() {
+        let start = tokio::time::Instant::now();
+        let calls = AtomicU32::new(0);
+        // policy delays would be ~1ms; the hint asks for 30ms
+        let out: Result<u32, &str> = retry_hinted(
+            FAST,
+            |_| true,
+            |_| Some(Duration::from_millis(30)),
+            |_| async {
+                let n = calls.fetch_add(1, Ordering::SeqCst) + 1;
+                if n < 2 { Err("slow down") } else { Ok(n) }
+            },
+        )
+        .await;
+        assert_eq!(out, Ok(2));
+        assert!(start.elapsed() >= Duration::from_millis(30));
+        assert_eq!(MAX_HINTED_DELAY, Duration::from_secs(60));
     }
 
     #[tokio::test]

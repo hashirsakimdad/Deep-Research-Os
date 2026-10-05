@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use super::provider::{LlmProvider, LlmRequest, LlmResponse, Usage};
 use crate::{
     error::LlmError,
-    util::retry::{RetryPolicy, retry},
+    util::retry::{RetryPolicy, retry_hinted},
 };
 
 pub struct GrokProvider {
@@ -107,10 +107,11 @@ impl GrokProvider {
 
         let status = resp.status();
         if !status.is_success() {
+            let retry_after = parse_retry_after(resp.headers().get(reqwest::header::RETRY_AFTER));
             let text = resp.text().await.unwrap_or_default();
             let body = text.chars().take(500).collect::<String>();
             return Err(match status {
-                StatusCode::TOO_MANY_REQUESTS => LlmError::RateLimited,
+                StatusCode::TOO_MANY_REQUESTS => LlmError::RateLimited { retry_after },
                 s if s.is_server_error() => LlmError::Server { status: s.as_u16(), body },
                 s => LlmError::Rejected { status: s.as_u16(), body },
             });
@@ -134,22 +135,45 @@ impl GrokProvider {
     }
 }
 
+/// `Retry-After` as whole seconds (the form rate-limited LLM APIs use), plus a small margin.
+fn parse_retry_after(value: Option<&reqwest::header::HeaderValue>) -> Option<Duration> {
+    let secs: f64 = value?.to_str().ok()?.trim().parse().ok()?;
+    (secs.is_finite() && secs >= 0.0).then(|| Duration::from_secs_f64(secs) + Duration::from_millis(250))
+}
+
 #[async_trait]
 impl LlmProvider for GrokProvider {
     async fn generate(&self, request: LlmRequest) -> Result<LlmResponse, LlmError> {
-        let body = self.build_body(&request);
+        let mut body = self.build_body(&request);
         let label = request.label;
-        retry(self.retry, LlmError::is_retryable, |attempt| {
-            let body = &body;
-            async move {
-                let result = self.attempt(body).await;
-                if let Err(e) = &result {
-                    tracing::warn!(agent = label, attempt, error = %e, "grok request failed");
+        let mut json_mode_dropped = false;
+        loop {
+            let result = retry_hinted(self.retry, LlmError::is_retryable, LlmError::retry_after, |attempt| {
+                let body = &body;
+                async move {
+                    let result = self.attempt(body).await;
+                    if let Err(e) = &result {
+                        tracing::warn!(agent = label, attempt, error = %e, "grok request failed");
+                    }
+                    result
                 }
-                result
+            })
+            .await;
+            match &result {
+                // Strict server-side JSON validation can reject long, valid-looking replies.
+                // Retry once in plain mode; the structured-output layer extracts and repairs JSON.
+                Err(LlmError::Rejected { status: 400, body: msg })
+                    if !json_mode_dropped && msg.contains("json_validate_failed") =>
+                {
+                    tracing::warn!(agent = label, "json mode rejected the reply; retrying without response_format");
+                    if let Some(obj) = body.as_object_mut() {
+                        obj.remove("response_format");
+                    }
+                    json_mode_dropped = true;
+                }
+                _ => return result,
             }
-        })
-        .await
+        }
     }
 }
 
@@ -204,6 +228,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn falls_back_to_plain_mode_when_json_mode_validation_fails() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(400).set_body_string(r#"{"error":{"code":"json_validate_failed"}}"#))
+            .up_to_n_times(1)
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(ok_body("{\"a\":1}")))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let out = provider(&server.uri()).generate(request()).await.unwrap();
+        assert_eq!(out.content, "{\"a\":1}");
+        let sent = server.received_requests().await.unwrap();
+        assert!(sent[0].body_json::<serde_json::Value>().unwrap().get("response_format").is_some());
+        assert!(sent[1].body_json::<serde_json::Value>().unwrap().get("response_format").is_none());
+    }
+
+    #[tokio::test]
     async fn sends_auth_and_parses_response() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
@@ -215,6 +260,34 @@ mod tests {
         let out = provider(&server.uri()).generate(request()).await.unwrap();
         assert_eq!(out.content, "{\"a\":1}");
         assert_eq!(out.usage.unwrap().completion_tokens, 4);
+    }
+
+    #[test]
+    fn parses_retry_after_seconds() {
+        use reqwest::header::HeaderValue;
+        let hv = |s: &str| HeaderValue::from_str(s).unwrap();
+        assert_eq!(parse_retry_after(Some(&hv("2"))), Some(Duration::from_millis(2250)));
+        assert_eq!(parse_retry_after(Some(&hv("0.5"))), Some(Duration::from_millis(750)));
+        assert_eq!(parse_retry_after(Some(&hv("soon"))), None);
+        assert_eq!(parse_retry_after(Some(&hv("-3"))), None);
+        assert_eq!(parse_retry_after(None), None);
+    }
+
+    #[tokio::test]
+    async fn rate_limit_waits_for_the_retry_after_the_server_asked_for() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(429).insert_header("retry-after", "1"))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(ok_body("ok")))
+            .mount(&server)
+            .await;
+        let start = std::time::Instant::now();
+        assert_eq!(provider(&server.uri()).generate(request()).await.unwrap().content, "ok");
+        assert!(start.elapsed() >= Duration::from_secs(1), "backoff here would only be ~1ms");
     }
 
     #[tokio::test]
