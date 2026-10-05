@@ -29,6 +29,8 @@ pub struct Limits {
     pub verify_batch_size: usize,
     /// Claims compared per contradiction call.
     pub contradiction_group_size: usize,
+    /// Verified claims given to the synthesizer and critic; bounds prompt size and cost.
+    pub report_claims: usize,
     /// Wall-clock budget for one research task.
     pub task_timeout: Duration,
     /// Per-attempt LLM request timeout.
@@ -51,6 +53,7 @@ impl Default for Limits {
             claims_per_source: 4,
             verify_batch_size: 8,
             contradiction_group_size: 12,
+            report_claims: 40,
             task_timeout: Duration::from_secs(240),
             llm_timeout: Duration::from_secs(120),
             http_timeout: Duration::from_secs(20),
@@ -79,6 +82,7 @@ impl Config {
         limits.max_concurrent_llm_calls = parse_or("MAX_CONCURRENT_LLM_CALLS", limits.max_concurrent_llm_calls)?;
         limits.max_concurrent_runs = parse_or("MAX_CONCURRENT_RUNS", limits.max_concurrent_runs)?;
         limits.sources_per_task = parse_or("SOURCES_PER_TASK", limits.sources_per_task)?;
+        limits.report_claims = parse_or("REPORT_MAX_CLAIMS", limits.report_claims)?.max(1);
         limits.task_timeout = Duration::from_secs(parse_or("TASK_TIMEOUT_SECS", 240u64)?);
         limits.llm_timeout = Duration::from_secs(parse_or("LLM_TIMEOUT_SECS", 120u64)?);
         limits.http_timeout = Duration::from_secs(parse_or("HTTP_TIMEOUT_SECS", 20u64)?);

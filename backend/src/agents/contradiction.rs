@@ -91,7 +91,7 @@ impl ContradictionAgent {
             return vec![];
         }
         let sources: HashMap<Uuid, Uuid> = group.claims.iter().map(|c| (c.id, c.source_id)).collect();
-        let payload = serde_json::to_string_pretty(&group.claims).unwrap_or_default();
+        let payload = serde_json::to_string(&group.claims).unwrap_or_default();
         let request =
             LlmRequest::json(NAME, SYSTEM, format!("Research question: {}\n\nClaims:\n{payload}", group.question));
         let result: Result<RawPairs, AgentError> =

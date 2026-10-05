@@ -93,8 +93,8 @@ impl Agent for CriticAgent {
             "Research question: {}\n\nResearch questions:\n{}\n\nDRAFT REPORT (claim_ids shown as given):\n{}\n\nClaims available to the report:\n{}\n\nContradictions found:\n{}\n\nClaims that failed verification and were excluded: {}",
             input.query,
             input.questions.iter().enumerate().map(|(i, q)| format!("{}. {q}", i + 1)).collect::<Vec<_>>().join("\n"),
-            serde_json::to_string_pretty(&input.report).unwrap_or_default(),
-            serde_json::to_string_pretty(&input.claims).unwrap_or_default(),
+            serde_json::to_string(&input.report).unwrap_or_default(),
+            serde_json::to_string(&input.claims).unwrap_or_default(),
             if input.contradiction_notes.is_empty() {
                 "(none)".to_string()
             } else {

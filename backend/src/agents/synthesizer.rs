@@ -128,8 +128,8 @@ impl Agent for SynthesizerAgent {
             input.query,
             input.iteration,
             numbered(&input.questions),
-            serde_json::to_string_pretty(&input.claims).unwrap_or_default(),
-            serde_json::to_string_pretty(&input.contradictions).unwrap_or_default(),
+            serde_json::to_string(&input.claims).unwrap_or_default(),
+            serde_json::to_string(&input.contradictions).unwrap_or_default(),
             numbered(&input.gaps),
             numbered(&input.reviewer_feedback),
         );

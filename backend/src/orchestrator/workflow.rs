@@ -33,11 +33,8 @@ use crate::{
     llm::{LimitedProvider, LlmProvider},
     models::*,
     tools::{Fetcher, SearchProvider},
-    util::text::context_around,
+    util::text::{context_around, truncate_chars},
 };
-
-/// Claims shown to the synthesizer and critic; bounds prompt size and cost.
-const MAX_REPORT_CLAIMS: usize = 60;
 
 pub struct Orchestrator {
     repo: Repository,
@@ -665,7 +662,7 @@ impl Orchestrator {
                 .cmp(&(a.claim.status == SupportLevel::Supported))
                 .then(b.claim.confidence.total_cmp(&a.claim.confidence))
         });
-        records.truncate(MAX_REPORT_CLAIMS);
+        records.truncate(self.limits.report_claims);
 
         let contradictions: Vec<Contradiction> = self
             .repo
@@ -710,9 +707,9 @@ impl Orchestrator {
                     .map(|r| SynthClaim {
                         id: r.claim.id,
                         text: r.claim.text.clone(),
-                        research_question: r.question.clone(),
+                        research_question: truncate_chars(&r.question, 90).to_string(),
                         support_level: r.claim.status,
-                        support_note: r.support_note(),
+                        support_note: truncate_chars(&r.support_note(), 220).to_string(),
                         confidence: r.claim.confidence,
                         source_title: r.source.title.clone(),
                         source_nature: r.source.nature,
@@ -808,7 +805,7 @@ impl Orchestrator {
                         id: r.claim.id,
                         text: r.claim.text.clone(),
                         support_level: r.claim.status,
-                        support_note: r.support_note(),
+                        support_note: truncate_chars(&r.support_note(), 220).to_string(),
                         source_nature: r.source.nature.to_string(),
                     })
                     .collect(),

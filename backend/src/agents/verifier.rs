@@ -90,7 +90,7 @@ impl VerifierAgent {
     }
 
     async fn verify_batch(&self, batch: &[VerifyItem]) -> Vec<Verdict> {
-        let payload = serde_json::to_string_pretty(batch).unwrap_or_default();
+        let payload = serde_json::to_string(batch).unwrap_or_default();
         let ids: Vec<Uuid> = batch.iter().map(|i| i.claim_id).collect();
         let request = LlmRequest::json(NAME, SYSTEM, format!("Verify these claims:\n{payload}"));
         let result: Result<RawVerdicts, AgentError> =
