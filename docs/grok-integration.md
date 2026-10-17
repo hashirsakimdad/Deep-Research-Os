@@ -45,3 +45,22 @@ model to return only JSON and spell out the rules the Rust validators enforce.
 
 Search is abstracted by `tools::SearchProvider`. V1 ships a Tavily implementation (`SEARCH_API_KEY`); the
 researcher also fetches pages itself (`tools::Fetcher`) when the search result carries no content.
+
+## Using another OpenAI-compatible provider (e.g. Groq)
+
+The provider speaks the OpenAI chat-completions protocol, so any compatible endpoint works by changing
+`.env` (no code change). Verified with Groq:
+
+```
+GROK_BASE_URL=https://api.groq.com/openai/v1
+GROK_MODEL=openai/gpt-oss-120b
+GROK_API_KEY=gsk_...
+```
+
+Notes learned from real runs on a rate-limited free tier:
+
+* Lower the load: `MAX_CONCURRENT_LLM_CALLS=2`, `MAX_CONCURRENT_TASKS=2`, `REPORT_MAX_CLAIMS=14`
+  (some tiers cap a single request at 8,000 tokens; an oversized prompt is rejected with 413 and cannot be retried).
+* `429` responses are retried after the server's `Retry-After`; other transient errors use exponential backoff.
+* If the server rejects JSON mode on a long reply (`json_validate_failed`), the request is retried once in plain
+  mode and the structured-output layer extracts and repairs the JSON.
