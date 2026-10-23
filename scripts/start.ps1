@@ -38,7 +38,8 @@ if (-not (Test-Port $FrontendPort)) {
     $env:NEXT_PUBLIC_API_URL = "http://localhost:$BackendPort"
     Push-Location (Join-Path $root "frontend")
     if (-not (Test-Path node_modules)) { npm install | Out-Null }
-    Start-Process npx -ArgumentList "next", "dev", "--webpack", "-p", $FrontendPort -WindowStyle Hidden `
+    if (Test-Path "D:\tmp") { $env:TEMP = "D:\tmp"; $env:TMP = "D:\tmp" }   # keep temp files off a small system drive
+    Start-Process npx.cmd -ArgumentList "next", "dev", "--webpack", "-p", $FrontendPort -WindowStyle Hidden `
         -RedirectStandardOutput (Join-Path $logs "frontend.log") -RedirectStandardError (Join-Path $logs "frontend.err")
     Pop-Location
 }
