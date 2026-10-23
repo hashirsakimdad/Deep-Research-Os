@@ -19,3 +19,6 @@ frontend/.env*
 Thumbs.db
 .idea/
 .vscode/
+
+# local run logs
+.logs/
