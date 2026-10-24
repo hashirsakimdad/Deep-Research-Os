@@ -1,5 +1,7 @@
 // Types mirror the JSON served by the Rust backend (docs/api.md).
 
+import { readSse } from "./sse";
+
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:8080";
 
@@ -188,8 +190,43 @@ export interface Report {
   citations: Citation[];
 }
 
+const KEY_STORAGE = "dro_access_key";
+
+/** The access key lives only in this browser (localStorage); it is never baked into the site's code. */
+export function getAccessKey(): string {
+  try {
+    return window.localStorage.getItem(KEY_STORAGE) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function setAccessKey(key: string): void {
+  try {
+    if (key) window.localStorage.setItem(KEY_STORAGE, key);
+    else window.localStorage.removeItem(KEY_STORAGE);
+  } catch {
+    /* storage unavailable: the key just will not persist */
+  }
+}
+
+export function authHeaders(key: string = getAccessKey()): Record<string, string> {
+  return key ? { "x-api-key": key } : {};
+}
+
+/** Checks a key against the backend: "ok", "unauthorized", or "unreachable". */
+export async function checkAccess(key: string): Promise<"ok" | "unauthorized" | "unreachable"> {
+  try {
+    const res = await fetch(`${API_URL}/api/research`, { headers: authHeaders(key), cache: "no-store" });
+    if (res.status === 401) return "unauthorized";
+    return res.ok ? "ok" : "unreachable";
+  } catch {
+    return "unreachable";
+  }
+}
+
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, { cache: "no-store" });
+  const res = await fetch(`${API_URL}${path}`, { headers: authHeaders(), cache: "no-store" });
   if (!res.ok) {
     throw new ApiError(res.status, await safeMessage(res));
   }
@@ -218,7 +255,7 @@ export const api = {
   async start(query: string): Promise<{ research_id: string; status: RunStatus }> {
     const res = await fetch(`${API_URL}/api/research`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ query }),
     });
     if (!res.ok) throw new ApiError(res.status, await safeMessage(res));
@@ -234,4 +271,17 @@ export const api = {
   critiques: (id: string) => get<Critique[]>(`/api/research/${id}/critiques`),
   report: (id: string) => get<Report>(`/api/research/${id}/report`),
   streamUrl: (id: string) => `${API_URL}/api/research/${id}/stream`,
+  /** Follows the live event stream; resumes after `lastEventId` so nothing is missed or repeated. */
+  stream: (
+    id: string,
+    opts: { lastEventId?: string; signal?: AbortSignal },
+    onOpen: () => void,
+    onEvent: (e: AgentEvent, sseId?: string) => void,
+  ) =>
+    readSse(
+      `${API_URL}/api/research/${id}/stream`,
+      { headers: authHeaders(), lastEventId: opts.lastEventId, signal: opts.signal },
+      onOpen,
+      (m) => onEvent(JSON.parse(m.data) as AgentEvent, m.id),
+    ),
 };

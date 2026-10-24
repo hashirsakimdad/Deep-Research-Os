@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use axum::http::HeaderValue;
 use deep_research_os_backend::{
-    api::{self, AppState},
+    api::{self, AppState, auth::AccessKey},
     config::Config,
     database::{self, Repository},
     llm::GrokProvider,
@@ -50,18 +50,48 @@ async fn main() -> anyhow::Result<()> {
         .allow_origin(config.cors_origin.parse::<HeaderValue>().context("invalid CORS_ORIGIN")?)
         .allow_methods(Any)
         .allow_headers(Any);
-    let app = api::router(AppState { repo, orchestrator }, cors);
+    let access_key = config.access_key.as_deref().map(AccessKey::new);
+    if access_key.is_none() {
+        tracing::warn!(
+            "API_ACCESS_KEY is not set: the API is OPEN to anyone who can reach it. Set it before exposing this publicly"
+        );
+    }
+    let app = api::router(AppState { repo, orchestrator }, cors, access_key);
 
     let listener = tokio::net::TcpListener::bind(&config.bind_addr)
         .await
         .with_context(|| format!("cannot bind {}", config.bind_addr))?;
-    tracing::info!(addr = %config.bind_addr, model = %config.grok_model, "deep research os listening");
+    tracing::info!(
+        addr = %config.bind_addr,
+        model = %config.grok_model,
+        access_control = config.access_key.is_some(),
+        "deep research os listening"
+    );
     axum::serve(listener, app)
         .with_graceful_shutdown(async move {
-            let _ = tokio::signal::ctrl_c().await;
+            shutdown_signal().await;
             tracing::info!("shutdown requested; cancelling active research");
             cancel.cancel();
         })
         .await?;
     Ok(())
+}
+
+/// Resolves on Ctrl-C, and on SIGTERM (what container platforms send to stop a service).
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+    #[cfg(unix)]
+    let terminate = async {
+        if let Ok(mut sig) = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            sig.recv().await;
+        }
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+    tokio::select! {
+        _ = ctrl_c => {}
+        _ = terminate => {}
+    }
 }

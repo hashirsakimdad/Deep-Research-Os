@@ -1,6 +1,6 @@
 # HTTP API
 
-Base URL `http://localhost:8080`. JSON everywhere. No authentication in V1.
+Base URL `http://localhost:8080`. JSON everywhere. Optional shared-secret access control (see below).
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -55,3 +55,7 @@ A client that falls far behind may lose live messages and should reconnect.
 ## Errors
 
 `{"error": "..."}` with `400` (bad query), `404` (unknown run / no report yet) or `500`.
+
+## Access control
+
+When `API_ACCESS_KEY` is set on the backend, every `/api/*` request needs `x-api-key: <key>` (or `Authorization: Bearer <key>`); otherwise it gets `401 {"error":"unauthorized"}`. `/health` is always open. Browser preflight (`OPTIONS`) is answered without a key. The SSE stream is read with `fetch` (not `EventSource`) so the key goes in a header, never in the URL. See [deployment](deployment.md).

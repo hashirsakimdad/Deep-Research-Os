@@ -12,6 +12,7 @@ import {
   SourceRef,
   api,
 } from "./api";
+import { StreamError } from "./sse";
 
 export interface ResearchView {
   overview: Overview | null;
@@ -89,7 +90,7 @@ export function useResearch(id: string): ResearchView {
 
   useEffect(() => {
     alive.current = true;
-    let source: EventSource | null = null;
+    const abort = new AbortController();
 
     const schedule = (includeReport: boolean) => {
       if (timer.current) clearTimeout(timer.current);
@@ -98,29 +99,45 @@ export function useResearch(id: string): ResearchView {
 
     void (async () => {
       await refresh(true);
-      if (!alive.current) return;
-      source = new EventSource(api.streamUrl(id));
-      source.onopen = () => setView((v) => ({ ...v, live: true }));
-      source.onerror = () => setView((v) => ({ ...v, live: false }));
-      source.onmessage = (msg) => {
-        const ev = JSON.parse(msg.data) as AgentEvent;
-        setView((v) =>
-          v.events.some((e) => e.id === ev.id) ? v : { ...v, events: [...v.events, ev] },
-        );
-        const wantsReport =
-          ev.event_type === "synthesis_completed" || TERMINAL.has(ev.event_type);
-        schedule(wantsReport);
-        if (TERMINAL.has(ev.event_type)) {
-          source?.close();
-          setView((v) => ({ ...v, live: false }));
+      let lastId: string | undefined;
+      let finished = false;
+      let delay = 1000;
+      // Follow the stream, reconnecting after drops and resuming from the last event seen.
+      while (alive.current && !finished) {
+        try {
+          await api.stream(
+            id,
+            { lastEventId: lastId, signal: abort.signal },
+            () => {
+              delay = 1000;
+              setView((v) => ({ ...v, live: true }));
+            },
+            (ev, sseId) => {
+              if (sseId) lastId = sseId;
+              setView((v) =>
+                v.events.some((e) => e.id === ev.id) ? v : { ...v, events: [...v.events, ev] },
+              );
+              schedule(ev.event_type === "synthesis_completed" || TERMINAL.has(ev.event_type));
+              if (TERMINAL.has(ev.event_type)) finished = true;
+            },
+          );
+        } catch (e) {
+          if (abort.signal.aborted) return;
+          if (e instanceof StreamError && (e.status === 401 || e.status === 404)) finished = true;
         }
-      };
+        if (!alive.current) return;
+        setView((v) => ({ ...v, live: false }));
+        if (!finished) {
+          await new Promise((r) => setTimeout(r, delay));
+          delay = Math.min(delay * 2, 15000);
+        }
+      }
     })();
 
     return () => {
       alive.current = false;
+      abort.abort();
       if (timer.current) clearTimeout(timer.current);
-      source?.close();
     };
   }, [id, refresh]);
 

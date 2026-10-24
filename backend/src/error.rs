@@ -15,6 +15,8 @@ pub enum ConfigError {
     Missing(&'static str),
     #[error("invalid value {1:?} for environment variable {0}")]
     Invalid(&'static str, String),
+    #[error("{0} must be at least {1} characters")]
+    TooShort(&'static str, usize),
 }
 
 #[derive(Debug, Error)]

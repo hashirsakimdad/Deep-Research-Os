@@ -1,6 +1,7 @@
 //! HTTP API (Axum). Handlers read persisted state; research runs are driven
 //! by the orchestrator in the background.
 
+pub mod auth;
 pub mod handlers;
 pub mod routes;
 

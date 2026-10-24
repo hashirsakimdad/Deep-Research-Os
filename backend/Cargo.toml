@@ -28,7 +28,7 @@ uuid = { version = "1.26.1", features = ["v4", "serde"] }
 
 [dev-dependencies]
 http-body-util = "0.1.5"
-tower = "0.5.3"
+tower = { version = "0.5.3", features = ["util"] }
 wiremock = "0.6.5"
 
 [profile.dev]
