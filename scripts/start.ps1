@@ -4,6 +4,8 @@
 param([int]$FrontendPort = 3001, [int]$BackendPort = 8081, [switch]$NoBrowser)
 
 $root = Split-Path -Parent $PSScriptRoot
+# Keep compiler/linker and npm temp files off a small or full system drive.
+if (Test-Path "D:\") { New-Item -ItemType Directory -Force "D:\tmp" | Out-Null; $env:TEMP = "D:\tmp"; $env:TMP = "D:\tmp"; $env:npm_config_cache = "D:\npm-cache" }
 $cargoHome = "D:\cargo"; $targetDir = "D:\cargo-target\deep-research-os"   # keep builds off a small system drive
 if (-not (Test-Path $cargoHome)) { $cargoHome = Join-Path $env:USERPROFILE ".cargo"; $targetDir = Join-Path $root "backend\target" }
 $logs = Join-Path $root ".logs"; New-Item -ItemType Directory -Force $logs | Out-Null
@@ -43,7 +45,7 @@ if (-not (Test-Port $FrontendPort)) {
         -RedirectStandardOutput (Join-Path $logs "frontend.log") -RedirectStandardError (Join-Path $logs "frontend.err")
     Pop-Location
 }
-if (-not (Wait-Http "http://localhost:$FrontendPort" 90)) { throw "frontend did not come up; see .logs\frontend.err" }
+if (-not (Wait-Http "http://localhost:$FrontendPort" 200)) { throw "frontend did not come up; see .logs\frontend.err" }
 
 Write-Host "`nDeep Research OS is running:  http://localhost:$FrontendPort   (API http://localhost:$BackendPort)"
 if (-not $NoBrowser) { Start-Process "http://localhost:$FrontendPort" }
