@@ -1,7 +1,7 @@
 <!-- Deep Research OS: autonomous multi-agent AI research engine (Rust, Grok/xAI, PostgreSQL, Next.js) that writes fully cited reports. -->
 
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="Deep Research OS: autonomous multi-agent AI deep research engine where every claim traces to evidence, source and URL">
+  <img src="./assets/readme/hero.png" width="100%" alt="Deep Research OS: autonomous multi-agent AI deep research engine where every claim traces to evidence, source and URL">
 </p>
 
 <h1 align="center">Deep Research OS</h1>
@@ -36,7 +36,7 @@
 ## 🧪 Proof first: one real run
 
 <p align="center">
-  <img src="./assets/readme/proof.svg" width="100%" alt="Real end-to-end run: 29 sources, 31 verified claims, 2 contradictions found, 8 of 8 citations audited">
+  <img src="./assets/readme/proof.png" width="100%" alt="Real end-to-end run: 29 sources, 31 verified claims, 2 contradictions found, 8 of 8 citations audited">
 </p>
 
 A full run against live Tavily search and an OpenAI-compatible LLM (Groq, `openai/gpt-oss-120b`, free tier) finished in two iterations: 6 questions, 10 tasks, 29 sources, 31 verified claims (24 supported, 7 partially supported) and 2 disagreements. The report had 6 key findings, 6 sections, 7 limitations and 8 citations.
