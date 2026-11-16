@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300" role="img" aria-labelledby="t d">
+<title id="t">Results of one real end-to-end run</title>
+<desc id="d">Two iterations: 6 questions, 10 tasks, 29 sources, 31 verified claims, 2 contradictions, 8 citations, every citation audited.</desc>
+<rect width="1200" height="300" rx="24" fill="#0a0c10"/><rect x="1" y="1" width="1198" height="298" rx="23" fill="none" stroke="#232a34" stroke-width="2"/>
+<g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+<text x="60" y="66" fill="#d8dee9" font-size="28" font-weight="700">One real run, live search + live LLM</text>
+<text x="60" y="100" fill="#7d8794" font-size="20">"What are the major technical limitations of autonomous AI agents?" · 2 iterations</text>
+<g text-anchor="middle">
+<g transform="translate(60 136)"><rect width="250" height="124" rx="16" fill="#11151b" stroke="#232a34"/><text x="125" y="68" fill="#60a5fa" font-size="54" font-weight="800">29</text><text x="125" y="102" fill="#7d8794" font-size="20">sources read</text></g>
+<g transform="translate(340 136)"><rect width="250" height="124" rx="16" fill="#11151b" stroke="#232a34"/><text x="125" y="68" fill="#4ade80" font-size="54" font-weight="800">31</text><text x="125" y="102" fill="#7d8794" font-size="20">verified claims</text></g>
+<g transform="translate(620 136)"><rect width="250" height="124" rx="16" fill="#11151b" stroke="#232a34"/><text x="125" y="68" fill="#fbbf24" font-size="54" font-weight="800">2</text><text x="125" y="102" fill="#7d8794" font-size="20">contradictions found</text></g>
+<g transform="translate(900 136)"><rect width="240" height="124" rx="16" fill="#11151b" stroke="#4fd1c5"/><text x="120" y="68" fill="#4fd1c5" font-size="54" font-weight="800">8/8</text><text x="120" y="102" fill="#7d8794" font-size="20">citations audited</text></g>
+</g></g></svg>

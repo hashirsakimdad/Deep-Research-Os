@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="1200" height="420" role="img" aria-labelledby="t d">
+<title id="t">Deep Research OS — autonomous multi-agent deep research engine in Rust</title>
+<desc id="d">Every statement in the report traces back through claim, evidence, source and URL.</desc>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0a0c10"/><stop offset="1" stop-color="#11151b"/></linearGradient>
+<linearGradient id="ac" x1="0" x2="1"><stop offset="0" stop-color="#4fd1c5"/><stop offset="1" stop-color="#60a5fa"/></linearGradient>
+<pattern id="g" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#161b23" stroke-width="1"/></pattern>
+</defs>
+<rect width="1200" height="420" rx="24" fill="url(#bg)"/>
+<rect width="1200" height="420" rx="24" fill="url(#g)"/>
+<rect x="1" y="1" width="1198" height="418" rx="23" fill="none" stroke="#232a34" stroke-width="2"/>
+<g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+<text x="64" y="92" fill="#4fd1c5" font-size="20" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" letter-spacing="3">$ research --cite-everything</text>
+<text x="62" y="170" fill="#d8dee9" font-size="72" font-weight="800">Deep Research <tspan fill="url(#ac)">OS</tspan></text>
+<text x="64" y="220" fill="#7d8794" font-size="26">Ask a hard question. Six AI agents plan, research, verify,</text>
+<text x="64" y="254" fill="#7d8794" font-size="26">find contradictions, write and critique a fully cited report.</text>
+<g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21">
+<rect x="64" y="300" width="132" height="52" rx="12" fill="#161b23" stroke="#4ade80"/><text x="130" y="333" fill="#4ade80" text-anchor="middle">claim</text>
+<path d="M200 326h40" stroke="#4fd1c5" stroke-width="2.5"/><path d="M236 320l8 6-8 6z" fill="#4fd1c5"/>
+<rect x="248" y="300" width="160" height="52" rx="12" fill="#161b23" stroke="#fbbf24"/><text x="328" y="333" fill="#fbbf24" text-anchor="middle">evidence</text>
+<path d="M412 326h40" stroke="#4fd1c5" stroke-width="2.5"/><path d="M448 320l8 6-8 6z" fill="#4fd1c5"/>
+<rect x="460" y="300" width="136" height="52" rx="12" fill="#161b23" stroke="#60a5fa"/><text x="528" y="333" fill="#60a5fa" text-anchor="middle">source</text>
+<path d="M600 326h40" stroke="#4fd1c5" stroke-width="2.5"/><path d="M636 320l8 6-8 6z" fill="#4fd1c5"/>
+<rect x="648" y="300" width="100" height="52" rx="12" fill="#161b23" stroke="#4fd1c5"/><text x="698" y="333" fill="#4fd1c5" text-anchor="middle">URL</text>
+</g>
+</g>
+<g transform="translate(900 210)" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="20">
+<circle r="150" fill="none" stroke="#232a34" stroke-width="2" stroke-dasharray="6 8"/>
+<circle r="44" fill="#161b23" stroke="#4fd1c5" stroke-width="2.5"/><text y="7" fill="#4fd1c5" text-anchor="middle" font-weight="700">Rust</text>
+<g fill="#11151b" stroke="#4fd1c5" stroke-width="2">
+<circle cx="0" cy="-150" r="10"/><circle cx="130" cy="-75" r="10"/><circle cx="130" cy="75" r="10"/><circle cx="0" cy="150" r="10"/><circle cx="-130" cy="75" r="10"/><circle cx="-130" cy="-75" r="10"/></g>
+<g fill="#d8dee9" text-anchor="middle">
+<text x="0" y="-170">Planner</text><text x="150" y="-90" text-anchor="start">Researcher</text><text x="150" y="82" text-anchor="start">Verifier</text>
+<text x="0" y="182">Synthesizer</text><text x="-150" y="82" text-anchor="end">Contradiction</text><text x="-150" y="-90" text-anchor="end">Critic</text></g>
+</g>
+</svg>
