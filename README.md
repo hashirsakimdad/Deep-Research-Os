@@ -20,11 +20,11 @@
 </p>
 
 <p align="center">
-  <a href="#-quick-start">Quick start</a> ·
-  <a href="#-how-it-works">How it works</a> ·
-  <a href="#-why-you-can-trust-the-report">Provenance</a> ·
-  <a href="#%EF%B8%8F-configuration">Configuration</a> ·
-  <a href="#-documentation">Docs</a>
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#why-you-can-trust-the-report">Provenance</a> ·
+  <a href="#configuration">Configuration</a> ·
+  <a href="#documentation">Docs</a>
 </p>
 
 <p align="center">
@@ -33,7 +33,7 @@
 
 ---
 
-## 🧪 Proof first: one real run
+## Proof first: one real run
 
 <p align="center">
   <img src="./assets/readme/proof.png" width="100%" alt="Real end-to-end run: 29 sources, 31 verified claims, 2 contradictions found, 8 of 8 citations audited">
@@ -54,7 +54,7 @@ A database audit confirmed that every citation URL is a stored source, every cit
 
 </details>
 
-## 🧠 What it is
+## What it is
 
 Deep Research OS is a **multi-agent research system**, not a chatbot and not a one-prompt RAG app.
 
@@ -67,7 +67,7 @@ Deep Research OS is a **multi-agent research system**, not a chatbot and not a o
 
 The LLM thinks. Rust decides. A model never gets to invent a citation.
 
-## 🔁 How it works
+## How it works
 
 <p align="center">
   <img src="./assets/readme/how-it-works.gif" width="100%" alt="Animated flowchart: a question moves from Planner to three parallel Researchers, into Postgres evidence, through Verifier, Contradiction Detector, Synthesizer and Critic, loops back once for more research, then becomes a cited report">
@@ -93,12 +93,12 @@ flowchart LR
 
 | Agent | What it does |
 |---|---|
-| 🗺️ Planner | Splits the question into sub-questions and dependent research tasks |
-| 🔎 Researcher | Searches, fetches pages, extracts claims with verbatim excerpts (runs in parallel) |
-| ✅ Verifier | Grades each claim: supported, partially supported, unverified |
-| ⚖️ Contradiction Detector | Compares claims across sources and flags disagreements |
-| ✍️ Synthesizer | Drafts the report from citable claims only |
-| 🧐 Critic | Reviews the draft; can send the run back for another iteration |
+| Planner | Splits the question into sub-questions and dependent research tasks |
+| Researcher | Searches, fetches pages, extracts claims with verbatim excerpts (runs in parallel) |
+| Verifier | Grades each claim: supported, partially supported, unverified |
+| Contradiction Detector | Compares claims across sources and flags disagreements |
+| Synthesizer | Drafts the report from citable claims only |
+| Critic | Reviews the draft; can send the run back for another iteration |
 
 More in [docs/agent-system.md](docs/agent-system.md).
 </details>
@@ -111,14 +111,14 @@ More in [docs/agent-system.md](docs/agent-system.md).
 Critiquing can loop back to Researching while `iteration < MAX_ITERATIONS` (default 2). Any phase can move to `Failed`. Transitions are enforced by `orchestrator::state::ResearchState`. Details in [docs/research-lifecycle.md](docs/research-lifecycle.md).
 </details>
 
-## 🔗 Why you can trust the report
+## Why you can trust the report
 
 - Claims must carry a **verbatim excerpt** from the source, or they are dropped.
 - Citations are **built by Rust from stored sources**, never copied from model output.
 - `UNVERIFIED` claims are excluded from the report by design.
 - In the dashboard, click any sentence to trace **claim → evidence → source → URL**.
 
-## 🚀 Quick start
+## Quick start
 
 ```bash
 cp .env.example .env            # set GROK_API_KEY and SEARCH_API_KEY (Tavily)
@@ -148,11 +148,11 @@ DATABASE_URL=postgres://research:research@localhost:5432/research cargo test --t
 LLM, search and fetch are scripted. Covers the happy path, the iteration loop, partial and total task failure, and deduplication. Without `DATABASE_URL` the test skips itself.
 </details>
 
-## 📺 The dashboard
+## The dashboard
 
 Progress tracker, evidence ledger, workflow graph, live event feed (SSE with `Last-Event-ID` replay), source and claim explorers, contradiction panel, critic panel, and a report view with click-through provenance.
 
-## ⚙️ Configuration
+## Configuration
 
 See [.env.example](.env.example). Secrets live only in `.env` (git-ignored).
 
@@ -173,11 +173,11 @@ See [.env.example](.env.example). Secrets live only in `.env` (git-ignored).
 To use another OpenAI-compatible provider, set `GROK_BASE_URL` and `GROK_MODEL`.
 </details>
 
-## ☁️ Deploying
+## Deploying
 
 Vercel for the frontend, any container host for the backend (`backend/Dockerfile`), hosted Postgres, protected by a shared `API_ACCESS_KEY`. Guide: [docs/deployment.md](docs/deployment.md).
 
-## 📊 Status
+## Status
 
 <details>
 <summary><b>Implemented and tested</b></summary>
@@ -211,7 +211,7 @@ Vercel for the frontend, any container host for the backend (`backend/Dockerfile
 
 </details>
 
-## 📁 Repository layout
+## Repository layout
 
 ```
 backend/     Rust service: api, agents, orchestrator, llm, tools, database, models + migrations
@@ -220,13 +220,13 @@ docs/        architecture, agents, lifecycle, database, API, Grok integration, A
 assets/      README images
 ```
 
-## 📚 Documentation
+## Documentation
 
 [Architecture](docs/architecture.md) · [Agent system](docs/agent-system.md) · [Research lifecycle](docs/research-lifecycle.md) · [Database](docs/database.md) · [API](docs/api.md) · [Grok integration](docs/grok-integration.md) · [Development](docs/development.md) · [Architecture decisions](docs/architecture-decisions.md) · [Deployment](docs/deployment.md)
 
 ---
 
 <p align="center">
-  If this is useful to you, a ⭐ helps other people find it.<br>
+  If this is useful to you, a star helps other people find it.<br>
   Built by <a href="https://github.com/hashirsakimdad">Hashir Sakimdad</a>
 </p>
