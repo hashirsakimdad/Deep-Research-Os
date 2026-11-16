@@ -69,6 +69,13 @@ The LLM thinks. Rust decides. A model never gets to invent a citation.
 
 ## 🔁 How it works
 
+<p align="center">
+  <img src="./assets/readme/how-it-works.gif" width="100%" alt="Animated flowchart: a question moves from Planner to three parallel Researchers, into Postgres evidence, through Verifier, Contradiction Detector, Synthesizer and Critic, loops back once for more research, then becomes a cited report">
+</p>
+
+<details>
+<summary><b>Static flowchart (Mermaid)</b></summary>
+
 ```mermaid
 flowchart LR
     Q[Question] --> P[Planner] --> T{{Research tasks}}
@@ -78,6 +85,8 @@ flowchart LR
     K -- "gaps / needs evidence<br/>(max 2 iterations)" --> T
     K -- accepted --> F[Final report with citations]
 ```
+
+</details>
 
 <details>
 <summary><b>The six agents</b></summary>
